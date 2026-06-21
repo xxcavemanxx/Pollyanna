@@ -19,16 +19,16 @@ const HALF_SIZE = BOARD_SIZE / 2;
 // Bases (Start Areas inside the colored corners outside the diamond - centered directly on top of player portraits!)
 export const BASE_POSITIONS: Record<number, Coordinate[]> = {
   0: [ // Green (Bottom-Right) - John Pendleton Portrait
-    { x: 644, y: 654 }, { x: 676, y: 654 }, { x: 644, y: 686 }, { x: 676, y: 686 }
+    { x: 704, y: 704 }, { x: 736, y: 704 }, { x: 704, y: 736 }, { x: 736, y: 736 }
   ],
   1: [ // Yellow (Bottom-Left) - Aunt Polly Portrait
-    { x: 114, y: 644 }, { x: 146, y: 644 }, { x: 114, y: 676 }, { x: 146, y: 676 }
+    { x: 64, y: 704 }, { x: 96, y: 704 }, { x: 64, y: 736 }, { x: 96, y: 736 }
   ],
   2: [ // Red (Top-Right) - Jimmy Portrait
-    { x: 654, y: 119 }, { x: 686, y: 119 }, { x: 654, y: 151 }, { x: 686, y: 151 }
+    { x: 704, y: 64 }, { x: 736, y: 64 }, { x: 704, y: 96 }, { x: 736, y: 96 }
   ],
   3: [ // Blue (Top-Left) - Pollyanna Portrait
-    { x: 124, y: 114 }, { x: 156, y: 114 }, { x: 124, y: 146 }, { x: 156, y: 146 }
+    { x: 64, y: 64 }, { x: 96, y: 64 }, { x: 64, y: 96 }, { x: 96, y: 96 }
   ]
 };
 
