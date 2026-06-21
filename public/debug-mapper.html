@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Board Precise Mapper</title>
+  <style>
+    body { margin: 0; padding: 10px; background: #111; color: white; font-family: monospace; font-size: 11px; }
+    .container { position: relative; display: inline-block; width: 800px; height: 800px; }
+    #clickLayer { position: absolute; top: 0; left: 0; width: 800px; height: 800px; cursor: crosshair; }
+    #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+    .controls { margin-bottom: 5px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button { padding: 4px 8px; cursor: pointer; background: #333; color: white; border: 1px solid #555; border-radius: 3px; }
+    button:hover { background: #444; }
+    #coordDisplay { position: fixed; top: 5px; right: 5px; background: rgba(0,0,0,0.9); padding: 10px; border: 1px solid #333; z-index: 100; max-height: 90vh; overflow-y: auto; width: 250px; }
+    select, input[type="number"] { background: #222; color: #fff; border: 1px solid #444; padding: 3px; }
+    label { display: flex; align-items: center; gap: 4px; user-select: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <span id="mousePos">Mouse: (0, 0)</span>
+    <span>| Clicked: <span id="count">0</span></span>
+    <button onclick="undo()">Undo</button>
+    <button onclick="clearAll()">Clear</button>
+    <button onclick="exportCoords()">Export</button>
+    <select id="mode">
+      <option value="broadway">Broadway</option>
+      <option value="home0">Home Path Green</option>
+      <option value="home1">Home Path Yellow</option>
+      <option value="home2">Home Path Red</option>
+      <option value="home3">Home Path Blue</option>
+      <option value="lines">Lines</option>
+    </select>
+    <label>
+      <input type="checkbox" id="snapEnable" checked /> Snap to Lines
+    </label>
+    <label>
+      Snap px: <input type="number" id="snapThreshold" value="12" style="width: 40px;" />
+    </label>
+    <label>
+      <input type="checkbox" id="dragRotateEnable" /> Drag to Rotate
+    </label>
+    <label>
+      Rotation: <input type="number" id="rotation" value="0" style="width: 50px;" step="1" />°
+    </label>
+  </div>
+  <div class="container">
+    <canvas id="overlay" width="800" height="800"></canvas>
+    <div id="clickLayer"></div>
+  </div>
+  <div id="coordDisplay"></div>
+  <script>
+    const points = { broadway: [], home0: [], home1: [], home2: [], home3: [] };
+    const lines = [
+      { start: { x: 349, y: 775 }, end: { x: 28, y: 447 }, color: '#eab308', name: 'Yellow Line' },
+      { start: { x: 771, y: 357 }, end: { x: 451, y: 32 }, color: '#ef4444', name: 'Red Line' },
+      { start: { x: 449, y: 778 }, end: { x: 773, y: 456 }, color: '#22c55e', name: 'Green Line' },
+      { start: { x: 30, y: 350 }, end: { x: 355, y: 32 }, color: '#3b82f6', name: 'Blue Line' },
+      { start: { x: 400, y: 787 }, end: { x: 400, y: 470 }, color: '#22c55e', name: 'Green Home Path Line' },
+      { start: { x: 403, y: 17 }, end: { x: 402, y: 326 }, color: '#3b82f6', name: 'Blue Home Path Line' },
+      { start: { x: 784, y: 405 }, end: { x: 471, y: 405 }, color: '#ef4444', name: 'Red Home Path Line' },
+      { start: { x: 15, y: 398 }, end: { x: 326, y: 396 }, color: '#eab308', name: 'Yellow Home Path Line' }
+    ];
+    
+    let draggedItem = null;
+    let pendingLineStart = null;
+    let currentMousePos = { x: 0, y: 0 };
+    let activeSnappedLineIndex = null;
+    let rotationAngle = 0;
+    let isRotating = false;
+    let rotateStartAngle = 0;
+    let rotateStartBoardAngle = 0;
+    
+    const boardImg = new Image();
+    boardImg.src = "/board.jpg";
+    boardImg.onload = () => redraw();
+    
+    const ctx = document.getElementById('overlay').getContext('2d');
+    const clickLayer = document.getElementById('clickLayer');
+    
+    document.getElementById('rotation').addEventListener('input', (e) => {
+      rotationAngle = parseFloat(e.target.value) || 0;
+      redraw();
+    });
+    
+    function getMousePos(e) {
+      const rect = clickLayer.getBoundingClientRect();
+      const xs = (e.clientX - rect.left) * (800 / rect.width);
+      const ys = (e.clientY - rect.top) * (800 / rect.height);
+      
+      const rad = -rotationAngle * Math.PI / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const cx = 400;
+      const cy = 400;
+      const xb = Math.round(cx + (xs - cx) * cos - (ys - cy) * sin);
+      const yb = Math.round(cy + (xs - cx) * sin + (ys - cy) * cos);
+      return { x: xb, y: yb };
+    }
+    
+    function distance(p1, p2) {
+      return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    }
+    
+    function getClosestPointOnSegment(p, a, b) {
+      const ab = { x: b.x - a.x, y: b.y - a.y };
+      const ap = { x: p.x - a.x, y: p.y - a.y };
+      const ab2 = ab.x * ab.x + ab.y * ab.y;
+      if (ab2 === 0) return { ...a };
+      let t = (ap.x * ab.x + ap.y * ab.y) / ab2;
+      t = Math.max(0, Math.min(1, t));
+      return { x: Math.round(a.x + t * ab.x), y: Math.round(a.y + t * ab.y) };
+    }
+    
+    function getSnappedPoint(p) {
+      if (lines.length === 0) return null;
+      let minDistance = Infinity;
+      let closestPt = null;
+      let lineIdx = -1;
+      const threshold = parseInt(document.getElementById('snapThreshold').value) || 12;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const ptOnLine = getClosestPointOnSegment(p, lines[i].start, lines[i].end);
+        const dist = distance(p, ptOnLine);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestPt = ptOnLine;
+          lineIdx = i;
+        }
+      }
+      
+      if (minDistance < threshold) {
+        return { point: closestPt, lineIndex: lineIdx };
+      }
+      return null;
+    }
+    
+    function findClickedItem(mx, my) {
+      const p = { x: mx, y: my };
+      
+      // 1. Check points (highest priority)
+      for (const [mode, pts] of Object.entries(points)) {
+        for (let i = 0; i < pts.length; i++) {
+          if (distance(p, pts[i]) < 8) {
+            return { type: 'point', mode, index: i };
+          }
+        }
+      }
+      
+      // 2. Check line endpoints
+      for (let i = 0; i < lines.length; i++) {
+        if (distance(p, lines[i].start) < 8) {
+          return { type: 'line_start', index: i };
+        }
+        if (distance(p, lines[i].end) < 8) {
+          return { type: 'line_end', index: i };
+        }
+      }
+      
+      // 3. Check line bodies
+      for (let i = 0; i < lines.length; i++) {
+        const closest = getClosestPointOnSegment(p, lines[i].start, lines[i].end);
+        if (distance(p, closest) < 6) {
+          return {
+            type: 'line_body',
+            index: i,
+            offsetStartX: lines[i].start.x - mx,
+            offsetStartY: lines[i].start.y - my,
+            offsetEndX: lines[i].end.x - mx,
+            offsetEndY: lines[i].end.y - my
+          };
+        }
+      }
+      
+      return null;
+    }
+    
+    clickLayer.addEventListener('mousedown', (e) => {
+      const rect = clickLayer.getBoundingClientRect();
+      const xs = (e.clientX - rect.left) * (800 / rect.width);
+      const ys = (e.clientY - rect.top) * (800 / rect.height);
+      
+      if (document.getElementById('dragRotateEnable').checked) {
+        isRotating = true;
+        rotateStartAngle = Math.atan2(ys - 400, xs - 400);
+        rotateStartBoardAngle = rotationAngle;
+        clickLayer.style.cursor = 'grabbing';
+        return;
+      }
+      
+      const { x, y } = getMousePos(e);
+      const clicked = findClickedItem(x, y);
+      
+      if (clicked) {
+        draggedItem = clicked;
+      } else {
+        const mode = document.getElementById('mode').value;
+        if (mode === 'lines') {
+          if (!pendingLineStart) {
+            pendingLineStart = { x, y };
+          } else {
+            lines.push({ start: pendingLineStart, end: { x, y } });
+            pendingLineStart = null;
+          }
+        } else {
+          let newPt = { x, y };
+          if (document.getElementById('snapEnable').checked && lines.length > 0) {
+            const snapped = getSnappedPoint(newPt);
+            if (snapped) {
+              newPt = snapped.point;
+            }
+          }
+          points[mode].push(newPt);
+        }
+      }
+      redraw();
+    });
+    
+    clickLayer.addEventListener('mousemove', (e) => {
+      const rect = clickLayer.getBoundingClientRect();
+      const xs = (e.clientX - rect.left) * (800 / rect.width);
+      const ys = (e.clientY - rect.top) * (800 / rect.height);
+      
+      if (isRotating) {
+        const currentAngle = Math.atan2(ys - 400, xs - 400);
+        let deltaAngle = currentAngle - rotateStartAngle;
+        rotationAngle = (rotateStartBoardAngle + deltaAngle * 180 / Math.PI) % 360;
+        if (rotationAngle < 0) rotationAngle += 360;
+        rotationAngle = Math.round(rotationAngle * 10) / 10;
+        document.getElementById('rotation').value = rotationAngle;
+        redraw();
+        return;
+      }
+      
+      const { x, y } = getMousePos(e);
+      currentMousePos = { x, y };
+      document.getElementById('mousePos').textContent = `Mouse: (${x}, ${y})`;
+      
+      if (draggedItem) {
+        if (draggedItem.type === 'point') {
+          let newPos = { x, y };
+          activeSnappedLineIndex = null;
+          if (document.getElementById('snapEnable').checked && lines.length > 0) {
+            const snapped = getSnappedPoint(newPos);
+            if (snapped) {
+              newPos = snapped.point;
+              activeSnappedLineIndex = snapped.lineIndex;
+            }
+          }
+          points[draggedItem.mode][draggedItem.index] = newPos;
+        } else if (draggedItem.type === 'line_start') {
+          lines[draggedItem.index].start = { x, y };
+        } else if (draggedItem.type === 'line_end') {
+          lines[draggedItem.index].end = { x, y };
+        } else if (draggedItem.type === 'line_body') {
+          lines[draggedItem.index].start = { x: x + draggedItem.offsetStartX, y: y + draggedItem.offsetStartY };
+          lines[draggedItem.index].end = { x: x + draggedItem.offsetEndX, y: y + draggedItem.offsetEndY };
+        }
+        redraw();
+      } else {
+        if (document.getElementById('dragRotateEnable').checked) {
+          clickLayer.style.cursor = 'grab';
+        } else {
+          const hovered = findClickedItem(x, y);
+          if (hovered) {
+            if (hovered.type === 'line_body') {
+              clickLayer.style.cursor = 'move';
+            } else {
+              clickLayer.style.cursor = 'pointer';
+            }
+          } else {
+            clickLayer.style.cursor = 'crosshair';
+          }
+        }
+        
+        if (pendingLineStart && document.getElementById('mode').value === 'lines') {
+          redraw();
+        }
+      }
+    });
+    
+    const endDrag = () => {
+      draggedItem = null;
+      activeSnappedLineIndex = null;
+      isRotating = false;
+      redraw();
+    };
+    
+    clickLayer.addEventListener('mouseup', endDrag);
+    clickLayer.addEventListener('mouseleave', endDrag);
+    
+    function undo() {
+      const mode = document.getElementById('mode').value;
+      if (mode === 'lines') {
+        if (pendingLineStart) {
+          pendingLineStart = null;
+        } else {
+          lines.pop();
+        }
+      } else {
+        points[mode].pop();
+      }
+      redraw();
+    }
+    
+    function clearAll() {
+      const mode = document.getElementById('mode').value;
+      if (mode === 'lines') {
+        lines.length = 0;
+        pendingLineStart = null;
+      } else {
+        points[mode].length = 0;
+      }
+      redraw();
+    }
+    
+    function exportCoords() {
+      let output = '';
+      for (const [key, pts] of Object.entries(points)) {
+        if (pts.length > 0) {
+          output += `// ${key} (${pts.length} points)\n`;
+          output += pts.map((p, i) => `  { x: ${p.x}, y: ${p.y} }, // ${i}`).join('\n') + '\n\n';
+        }
+      }
+      if (lines.length > 0) {
+        output += `// Lines (${lines.length} lines)\n`;
+        output += lines.map((l, i) => {
+          const comment = l.name ? ` // ${l.name}` : ` // ${i}`;
+          return `  { start: { x: ${l.start.x}, y: ${l.start.y} }, end: { x: ${l.end.x}, y: ${l.end.y} } },${comment}`;
+        }).join('\n') + '\n\n';
+      }
+      navigator.clipboard.writeText(output);
+      alert('Copied!');
+    }
+    
+    const colors = { broadway: '#ff0', home0: '#0f0', home1: '#ff0', home2: '#f00', home3: '#00f' };
+    
+    function redraw() {
+      ctx.clearRect(0, 0, 800, 800);
+      
+      ctx.save();
+      ctx.translate(400, 400);
+      ctx.rotate(rotationAngle * Math.PI / 180);
+      ctx.translate(-400, -400);
+      
+      if (boardImg.complete) {
+        ctx.drawImage(boardImg, 0, 0, 800, 800);
+      }
+      
+      // Draw lines
+      lines.forEach((line, idx) => {
+        // Draw black outline for line segment
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = idx === activeSnappedLineIndex ? 7 : 5;
+        ctx.stroke();
+
+        // Draw colored/green inner for line segment
+        ctx.beginPath();
+        ctx.moveTo(line.start.x, line.start.y);
+        ctx.lineTo(line.end.x, line.end.y);
+        if (idx === activeSnappedLineIndex) {
+          ctx.strokeStyle = '#22c55e'; // Green highlight for snap
+          ctx.lineWidth = 4;
+        } else {
+          ctx.strokeStyle = line.color || '#ff8800'; // Colored line
+          ctx.lineWidth = 2.5;
+        }
+        ctx.stroke();
+        
+        // Start point
+        ctx.beginPath();
+        ctx.arc(line.start.x, line.start.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = line.color || '#ff8800';
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // End point
+        ctx.beginPath();
+        ctx.arc(line.end.x, line.end.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = line.color || '#ff8800';
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Show coordinates near endpoints (with a text outline for readability)
+        const label = line.name ? `${line.name.split(' ')[0][0]}${idx}` : `L${idx}`;
+        const sText = `S:${label}(${line.start.x}, ${line.start.y})`;
+        const eText = `E:${label}(${line.end.x}, ${line.end.y})`;
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText(sText, line.start.x + 8, line.start.y - 2);
+        ctx.strokeText(eText, line.end.x + 8, line.end.y - 2);
+        
+        ctx.fillStyle = 'white';
+        ctx.fillText(sText, line.start.x + 8, line.start.y - 2);
+        ctx.fillText(eText, line.end.x + 8, line.end.y - 2);
+      });
+      
+      // Draw pending line
+      if (pendingLineStart && document.getElementById('mode').value === 'lines') {
+        // Pending line start point
+        ctx.beginPath();
+        ctx.arc(pendingLineStart.x, pendingLineStart.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff8800';
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Outline for dashed pending line
+        ctx.beginPath();
+        ctx.moveTo(pendingLineStart.x, pendingLineStart.y);
+        ctx.lineTo(currentMousePos.x, currentMousePos.y);
+        ctx.strokeStyle = 'black';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        
+        // Orange inner for dashed pending line
+        ctx.strokeStyle = '#ff8800';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      
+      // Draw points
+      let total = 0;
+      for (const [key, pts] of Object.entries(points)) {
+        total += pts.length;
+        pts.forEach((p, i) => {
+          if (i > 0) {
+            // Draw path line outline
+            ctx.beginPath();
+            ctx.moveTo(pts[i-1].x, pts[i-1].y);
+            ctx.lineTo(p.x, p.y);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+
+            // Draw path line inner
+            ctx.strokeStyle = '#ff8800';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+          }
+        });
+        
+        // Draw dots on top of path lines
+        pts.forEach((p, i) => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          ctx.fillStyle = '#ff8800';
+          ctx.fill();
+          ctx.strokeStyle = 'black';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 7px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(i.toString(), p.x, p.y);
+        });
+      }
+      
+      ctx.restore();
+      
+      document.getElementById('count').textContent = total;
+      
+      // Draw coordinates display on screen
+      let html = '';
+      for (const [key, pts] of Object.entries(points)) {
+        if (pts.length > 0) {
+          html += `<b>${key} (${pts.length})</b><br>`;
+          pts.forEach((p, i) => html += `[${i}] ${p.x},${p.y}<br>`);
+          html += '<br>';
+        }
+      }
+      if (lines.length > 0) {
+        html += `<b>lines (${lines.length})</b><br>`;
+        lines.forEach((l, i) => {
+          const nameStr = l.name ? ` (${l.name})` : '';
+          html += `[${i}]${nameStr} S(${l.start.x},${l.start.y}) -> E(${l.end.x},${l.end.y})<br>`;
+        });
+        html += '<br>';
+      }
+      document.getElementById('coordDisplay').innerHTML = html;
+    }
+  </script>
+</body>
+</html>

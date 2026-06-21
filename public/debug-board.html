@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Board Debug Overlay</title>
+  <style>
+    body { margin: 0; padding: 20px; background: #111; display: flex; gap: 20px; }
+    .container { position: relative; }
+    img { width: 800px; height: 800px; }
+    canvas { position: absolute; top: 0; left: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="/board.jpg" />
+    <canvas id="overlay" width="800" height="800"></canvas>
+  </div>
+  <div style="color: white; font-family: monospace; font-size: 12px; max-width: 400px; overflow-y: auto; max-height: 800px;" id="log"></div>
+  <script type="module">
+    // Import directly from the project source of truth — no hardcoded coordinates!
+    // Works with Vite dev server (npm run dev) which transpiles .ts on the fly.
+    import {
+      BROADWAY_COORDS,
+      getHomePathCoords,
+      BASE_POSITIONS,
+      HOME_COORDS,
+      BOARD_SIZE
+    } from '/src/utils/boardLayout.ts';
+
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const log = document.getElementById('log');
+
+    // Draw broadway spaces
+    BROADWAY_COORDS.forEach((coord, idx) => {
+      if (!coord) return;
+      ctx.beginPath();
+      ctx.arc(coord.x, coord.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 7px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(idx.toString(), coord.x, coord.y);
+    });
+
+    // Draw home paths
+    const hpColors = ['#00ff00', '#ffff00', '#ff0000', '#0088ff'];
+    for (let p = 0; p < 4; p++) {
+      const hpCoords = getHomePathCoords(p);
+      hpCoords.forEach((coord, idx) => {
+        ctx.beginPath();
+        ctx.arc(coord.x, coord.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = hpColors[p] + '88';
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 6px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('H' + idx, coord.x, coord.y);
+      });
+    }
+
+    // Draw base positions
+    for (let p = 0; p < 4; p++) {
+      BASE_POSITIONS[p].forEach((coord, idx) => {
+        ctx.beginPath();
+        ctx.arc(coord.x, coord.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = hpColors[p] + '88';
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = 'black';
+        ctx.font = 'bold 6px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('B' + idx, coord.x, coord.y);
+      });
+    }
+
+    // Draw home centers
+    for (let p = 0; p < 4; p++) {
+      const coord = HOME_COORDS[p];
+      ctx.beginPath();
+      ctx.arc(coord.x, coord.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = hpColors[p] + 'cc';
+      ctx.fill();
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 7px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⌂', coord.x, coord.y);
+    }
+
+    // Log coordinates
+    let logText = '<h3>Broadway Coordinates</h3>';
+    BROADWAY_COORDS.forEach((c, i) => {
+      if (c) logText += `[${i}] x:${Math.round(c.x)}, y:${Math.round(c.y)}<br>`;
+    });
+    log.innerHTML = logText;
+  </script>
+</body>
+</html>
