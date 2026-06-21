@@ -112,39 +112,73 @@
       return { x: Math.round(a.x + t * ab.x), y: Math.round(a.y + t * ab.y) };
     }
 
+    function getArcPoints(arc, numPoints = 40) {
+      const { start: A, end: B, bulge } = arc;
+      const L = Math.hypot(B.x - A.x, B.y - A.y);
+      if (L === 0) return [A];
+      
+      const b_abs = Math.abs(bulge !== undefined ? bulge : 1.0);
+      if (b_abs < 0.01) {
+        return [A, B];
+      }
+      
+      const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+      const ux = (B.x - A.x) / L;
+      const uy = (B.y - A.y) / L;
+      const nx = -uy;
+      const ny = ux;
+      
+      const sign = (bulge !== undefined ? bulge : 1.0) >= 0 ? 1 : -1;
+      const R = L * (1 + b_abs * b_abs) / (4 * b_abs);
+      const dC = L * (1 - b_abs * b_abs) / (4 * b_abs);
+      
+      const cx = M.x - sign * dC * nx;
+      const cy = M.y - sign * dC * ny;
+      
+      const thetaA = Math.atan2(A.y - cy, A.x - cx);
+      const sweepAngle = 4 * Math.atan(bulge !== undefined ? bulge : 1.0);
+      
+      const pts = [];
+      for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        const angle = thetaA + t * sweepAngle;
+        pts.push({
+          x: cx + R * Math.cos(angle),
+          y: cy + R * Math.sin(angle)
+        });
+      }
+      return pts;
+    }
+
+    function getArcApex(arc) {
+      const { start: A, end: B, bulge } = arc;
+      const L = Math.hypot(B.x - A.x, B.y - A.y);
+      const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+      if (L === 0) return M;
+      const ux = (B.x - A.x) / L;
+      const uy = (B.y - A.y) / L;
+      const nx = -uy;
+      const ny = ux;
+      const b = bulge !== undefined ? bulge : 1.0;
+      return {
+        x: M.x + b * (L / 2) * nx,
+        y: M.y + b * (L / 2) * ny
+      };
+    }
+
     function getClosestPointOnArc(p, arc) {
-      const { start, end, clockwise } = arc;
-      const cx = (start.x + end.x) / 2;
-      const cy = (start.y + end.y) / 2;
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const R = Math.hypot(dx, dy) / 2;
-      
-      if (R === 0) return { ...start };
-      
-      const vx = p.x - cx;
-      const vy = p.y - cy;
-      const distToCenter = Math.hypot(vx, vy);
-      
-      let closestPt;
-      if (distToCenter === 0) {
-        closestPt = { ...start };
-      } else {
-        const qx = cx + R * (vx / distToCenter);
-        const qy = cy + R * (vy / distToCenter);
-        
-        const dot = (qx - start.x) * (-dy) + (qy - start.y) * dx;
-        const correctSide = clockwise ? (dot >= 0) : (dot < 0);
-        
-        if (correctSide) {
-          closestPt = { x: Math.round(qx), y: Math.round(qy) };
-        } else {
-          const distToStart = Math.hypot(p.x - start.x, p.y - start.y);
-          const distToEnd = Math.hypot(p.x - end.x, p.y - end.y);
-          closestPt = distToStart < distToEnd ? { ...start } : { ...end };
+      const pts = getArcPoints(arc, 40);
+      let minDistance = Infinity;
+      let closestPt = null;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const pt = getClosestPointOnSegment(p, pts[i], pts[i+1]);
+        const dist = Math.hypot(p.x - pt.x, p.y - pt.y);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestPt = pt;
         }
       }
-      return closestPt;
+      return closestPt || { ...arc.start };
     }
     
     function getSnappedPoint(p) {
@@ -185,7 +219,17 @@
         }
       }
       
-      // 2. Check line endpoints
+      // 2. Check arc bulge handles
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].type === 'arc') {
+          const apex = getArcApex(lines[i]);
+          if (distance(p, apex) < 8) {
+            return { type: 'arc_bulge', index: i };
+          }
+        }
+      }
+      
+      // 3. Check line endpoints
       for (let i = 0; i < lines.length; i++) {
         if (distance(p, lines[i].start) < 8) {
           return { type: 'line_start', index: i };
@@ -195,7 +239,7 @@
         }
       }
       
-      // 3. Check line bodies
+      // 4. Check line bodies
       for (let i = 0; i < lines.length; i++) {
         const isArc = lines[i].type === 'arc';
         const closest = isArc
@@ -244,7 +288,7 @@
               type: mode === 'arcs' ? 'arc' : 'line',
               start: pendingLineStart,
               end: { x, y },
-              clockwise: true,
+              bulge: 1.0,
               color: mode === 'arcs' ? '#f43f5e' : undefined
             });
             pendingLineStart = null;
@@ -302,6 +346,20 @@
         } else if (draggedItem.type === 'line_body') {
           lines[draggedItem.index].start = { x: x + draggedItem.offsetStartX, y: y + draggedItem.offsetStartY };
           lines[draggedItem.index].end = { x: x + draggedItem.offsetEndX, y: y + draggedItem.offsetEndY };
+        } else if (draggedItem.type === 'arc_bulge') {
+          const line = lines[draggedItem.index];
+          const A = line.start;
+          const B = line.end;
+          const L = Math.hypot(B.x - A.x, B.y - A.y);
+          if (L > 0) {
+            const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+            const ux = (B.x - A.x) / L;
+            const uy = (B.y - A.y) / L;
+            const nx = -uy;
+            const ny = ux;
+            const h_drag = (x - M.x) * nx + (y - M.y) * ny;
+            line.bulge = 2 * h_drag / L;
+          }
         }
         redraw();
       } else {
@@ -312,6 +370,8 @@
           if (hovered) {
             if (hovered.type === 'line_body') {
               clickLayer.style.cursor = 'move';
+            } else if (hovered.type === 'arc_bulge') {
+              clickLayer.style.cursor = 'ns-resize';
             } else {
               clickLayer.style.cursor = 'pointer';
             }
@@ -375,8 +435,8 @@
         output += lines.map((l, i) => {
           const comment = l.name ? ` // ${l.name}` : ` // ${i}`;
           const typePart = l.type ? `type: '${l.type}', ` : '';
-          const clockwisePart = l.type === 'arc' ? `clockwise: ${l.clockwise}, ` : '';
-          return `  { ${typePart}${clockwisePart}start: { x: ${l.start.x}, y: ${l.start.y} }, end: { x: ${l.end.x}, y: ${l.end.y} } },${comment}`;
+          const bulgePart = l.type === 'arc' ? `bulge: ${l.bulge !== undefined ? l.bulge.toFixed(4) : '1.0000'}, ` : '';
+          return `  { ${typePart}${bulgePart}start: { x: ${l.start.x}, y: ${l.start.y} }, end: { x: ${l.end.x}, y: ${l.end.y} } },${comment}`;
         }).join('\n') + '\n\n';
       }
       navigator.clipboard.writeText(output);
@@ -385,7 +445,7 @@
 
     function toggleArc(idx) {
       if (lines[idx] && lines[idx].type === 'arc') {
-        lines[idx].clockwise = !lines[idx].clockwise;
+        lines[idx].bulge = -(lines[idx].bulge !== undefined ? lines[idx].bulge : 1.0);
         redraw();
       }
     }
@@ -408,26 +468,24 @@
       lines.forEach((line, idx) => {
         const isArc = line.type === 'arc';
         if (isArc) {
-          const cx = (line.start.x + line.end.x) / 2;
-          const cy = (line.start.y + line.end.y) / 2;
-          const dx = line.end.x - line.start.x;
-          const dy = line.end.y - line.start.y;
-          const R = Math.hypot(dx, dy) / 2;
-          if (R > 0) {
-            const thetaStart = Math.atan2(line.start.y - cy, line.start.x - cx);
-            const thetaEnd = Math.atan2(line.end.y - cy, line.end.x - cx);
-            const anticlockwise = !line.clockwise;
-            
+          const pts = getArcPoints(line, 40);
+          if (pts.length > 1) {
             // Draw black outline
             ctx.beginPath();
-            ctx.arc(cx, cy, R, thetaStart, thetaEnd, anticlockwise);
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              ctx.lineTo(pts[i].x, pts[i].y);
+            }
             ctx.strokeStyle = 'black';
             ctx.lineWidth = idx === activeSnappedLineIndex ? 7 : 5;
             ctx.stroke();
             
             // Draw colored/green inner
             ctx.beginPath();
-            ctx.arc(cx, cy, R, thetaStart, thetaEnd, anticlockwise);
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              ctx.lineTo(pts[i].x, pts[i].y);
+            }
             if (idx === activeSnappedLineIndex) {
               ctx.strokeStyle = '#22c55e';
               ctx.lineWidth = 4;
@@ -435,6 +493,16 @@
               ctx.strokeStyle = line.color || '#ff8800';
               ctx.lineWidth = 2.5;
             }
+            ctx.stroke();
+
+            // Draw bulge handle (apex)
+            const apex = getArcApex(line);
+            ctx.beginPath();
+            ctx.arc(apex.x, apex.y, 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#10b981'; // Green handle for bulge/curvature
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 1.5;
             ctx.stroke();
           }
         } else {
@@ -500,16 +568,18 @@
       if (pendingLineStart && (modeVal === 'lines' || modeVal === 'arcs')) {
         const isArc = modeVal === 'arcs';
         if (isArc) {
-          const cx = (pendingLineStart.x + currentMousePos.x) / 2;
-          const cy = (pendingLineStart.y + currentMousePos.y) / 2;
-          const R = Math.hypot(currentMousePos.x - pendingLineStart.x, currentMousePos.y - pendingLineStart.y) / 2;
-          if (R > 0) {
-            const thetaStart = Math.atan2(pendingLineStart.y - cy, pendingLineStart.x - cx);
-            const thetaEnd = Math.atan2(currentMousePos.y - cy, currentMousePos.x - cx);
-            
-            // Draw pending arc outline (dashed)
+          const tempArc = {
+            start: pendingLineStart,
+            end: currentMousePos,
+            bulge: 1.0
+          };
+          const pts = getArcPoints(tempArc, 40);
+          if (pts.length > 1) {
             ctx.beginPath();
-            ctx.arc(cx, cy, R, thetaStart, thetaEnd, true); // default anticlockwise = true for preview
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              ctx.lineTo(pts[i].x, pts[i].y);
+            }
             ctx.strokeStyle = 'black';
             ctx.setLineDash([4, 4]);
             ctx.lineWidth = 5;
@@ -603,7 +673,7 @@
         html += `<b>lines & arcs (${lines.length})</b><br>`;
         lines.forEach((l, i) => {
           const nameStr = l.name ? ` (${l.name})` : '';
-          const typeStr = l.type === 'arc' ? `Arc (CW:${l.clockwise})` : 'Line';
+          const typeStr = l.type === 'arc' ? `Arc (Bulge:${l.bulge !== undefined ? l.bulge.toFixed(2) : '1.00'})` : 'Line';
           const flipBtn = l.type === 'arc' ? `<button onclick="toggleArc(${i})" style="padding: 1px 4px; font-size: 9px; margin-left: 5px; background: #555; color: #fff; border: 1px solid #777; border-radius: 2px; cursor: pointer;">Flip</button>` : '';
           html += `[${i}]${nameStr} ${typeStr} S(${l.start.x},${l.start.y}) -> E(${l.end.x},${l.end.y})${flipBtn}<br>`;
         });
