@@ -136,62 +136,80 @@ export const BROADWAY_COORDS: Coordinate[] = [
 ];
 
 // Generate Turnout path coordinates (rounded U-shape arches bulging INWARDS toward the center)
+const TURNOUT_ARCS: Record<number, { start: Coordinate; end: Coordinate; bulge: number }> = {
+  0: { start: { x: 496, y: 626 }, end: { x: 621, y: 504 }, bulge: -0.79 }, // Green
+  1: { start: { x: 175, y: 494 }, end: { x: 298, y: 620 }, bulge: -0.81 }, // Yellow
+  2: { start: { x: 625, y: 305 }, end: { x: 506, y: 181 }, bulge: -0.84 }, // Red
+  3: { start: { x: 302, y: 177 }, end: { x: 179, y: 297 }, bulge: -0.83 }  // Blue
+};
+
+// Generate Turnout path coordinates using measured circular arcs
 export const getTurnoutCoords = (playerIndex: number, extraLength: number = 3): Coordinate[] => {
-  const config = TURNOUT_CONFIGS[playerIndex];
-  const start = BROADWAY_COORDS[config.branchIndex];
-  const end = BROADWAY_COORDS[config.mergeIndex];
+  const arc = TURNOUT_ARCS[playerIndex];
+  if (!arc) return [];
   
-  const stepsCount = Math.abs(config.mergeIndex - config.branchIndex) + extraLength;
+  const A = arc.start;
+  const B = arc.end;
+  const bulge = arc.bulge;
+  
+  const L = Math.hypot(B.x - A.x, B.y - A.y);
+  if (L === 0) return [];
+  
+  const b_abs = Math.abs(bulge);
+  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  const ux = (B.x - A.x) / L;
+  const uy = (B.y - A.y) / L;
+  const nx = -uy;
+  const ny = ux;
+  
+  const sign = bulge >= 0 ? 1 : -1;
+  const R = L * (1 + b_abs * b_abs) / (4 * b_abs);
+  const dC = L * (1 - b_abs * b_abs) / (4 * b_abs);
+  
+  const cx = M.x - sign * dC * nx;
+  const cy = M.y - sign * dC * ny;
+  
+  const apex = {
+    x: M.x + bulge * (L / 2) * nx,
+    y: M.y + bulge * (L / 2) * ny
+  };
+  
+  const thetaA = Math.atan2(A.y - cy, A.x - cx);
+  const thetaApex = Math.atan2(apex.y - cy, apex.x - cx);
+  const thetaB = Math.atan2(B.y - cy, B.x - cx);
+  
+  let diff1 = thetaApex - thetaA;
+  diff1 = Math.atan2(Math.sin(diff1), Math.cos(diff1));
+  
+  let diff2 = thetaB - thetaApex;
+  diff2 = Math.atan2(Math.sin(diff2), Math.cos(diff2));
+  
+  // Total spaces inside turnout is 4 + extraLength (7 spaces by default when extraLength = 3)
+  const numSpaces = 4 + extraLength;
+  const steps = numSpaces - 1;
+  
   const coords: Coordinate[] = [];
-  
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  
-  // Unit Tangent and Perpendicular vectors
-  const tx = dx / dist;
-  const ty = dy / dist;
-  const px = ty;
-  const py = -tx;
-  
-  // U-shape arch parameters
-  const h = 30; // length of straight perpendicular legs
-  const R = dist / 2; // radius of semi-circular arc
-  const arcLength = Math.PI * R;
-  const totalLength = 2 * h + arcLength;
-  
-  const cx = (start.x + end.x) / 2 + h * px;
-  const cy = (start.y + end.y) / 2 + h * py;
-  
-  for (let i = 0; i <= stepsCount; i++) {
-    const s = (i / stepsCount) * totalLength;
-    
-    if (s <= h) {
-      // First leg (straight perpendicular)
-      coords.push({
-        x: start.x + s * px,
-        y: start.y + s * py
-      });
-    } else if (s < h + arcLength) {
-      // Circular arc
-      const sArc = s - h;
-      const theta = sArc / R; // angle from 0 to PI
-      
-      coords.push({
-        x: cx - R * Math.cos(theta) * tx + R * Math.sin(theta) * px,
-        y: cy - R * Math.cos(theta) * ty + R * Math.sin(theta) * py
-      });
+  for (let i = 0; i < numSpaces; i++) {
+    const t = i / steps;
+    let angle;
+    if (t <= 0.5) {
+      const t1 = t * 2;
+      angle = thetaA + t1 * diff1;
     } else {
-      // Second leg (straight perpendicular back to end)
-      const sLeg2 = s - h - arcLength;
-      coords.push({
-        x: end.x + (h - sLeg2) * px,
-        y: end.y + (h - sLeg2) * py
-      });
+      const t2 = (t - 0.5) * 2;
+      angle = thetaApex + t2 * diff2;
     }
+    coords.push({
+      x: Math.round(cx + R * Math.cos(angle)),
+      y: Math.round(cy + R * Math.sin(angle))
+    });
   }
   
-  return coords.slice(1, -1);
+  // Force exact start and end points
+  coords[0] = { ...A };
+  coords[coords.length - 1] = { ...B };
+  
+  return coords;
 };
 
 // Generate Home Paths aligned to the measured board lines

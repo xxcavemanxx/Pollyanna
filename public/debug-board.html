@@ -21,6 +21,7 @@
     import {
       BROADWAY_COORDS,
       getHomePathCoords,
+      getTurnoutCoords,
       BASE_POSITIONS,
       HOME_COORDS,
       BOARD_SIZE
@@ -69,6 +70,26 @@
       });
     }
 
+    // Draw turnouts
+    for (let p = 0; p < 4; p++) {
+      const turnoutCoords = getTurnoutCoords(p);
+      turnoutCoords.forEach((coord, idx) => {
+        ctx.beginPath();
+        ctx.arc(coord.x, coord.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = hpColors[p] + 'cc';
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 6px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('T' + idx, coord.x, coord.y);
+      });
+    }
+
     // Draw base positions
     for (let p = 0; p < 4; p++) {
       BASE_POSITIONS[p].forEach((coord, idx) => {
@@ -110,6 +131,12 @@
     BROADWAY_COORDS.forEach((c, i) => {
       if (c) logText += `[${i}] x:${Math.round(c.x)}, y:${Math.round(c.y)}<br>`;
     });
+    for (let p = 0; p < 4; p++) {
+      logText += `<h3>Turnout ${p}</h3>`;
+      getTurnoutCoords(p).forEach((c, i) => {
+        logText += `[T${i}] x:${Math.round(c.x)}, y:${Math.round(c.y)}<br>`;
+      });
+    }
     log.innerHTML = logText;
   </script>
 </body>
