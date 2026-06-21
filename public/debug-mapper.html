@@ -119,7 +119,7 @@
       
       const b_abs = Math.abs(bulge !== undefined ? bulge : 1.0);
       if (b_abs < 0.01) {
-        return [A, B];
+        return [{ ...A }, { ...B }];
       }
       
       const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
@@ -135,18 +135,40 @@
       const cx = M.x - sign * dC * nx;
       const cy = M.y - sign * dC * ny;
       
+      const apex = getArcApex(arc);
+      
       const thetaA = Math.atan2(A.y - cy, A.x - cx);
-      const sweepAngle = 4 * Math.atan(bulge !== undefined ? bulge : 1.0);
+      const thetaApex = Math.atan2(apex.y - cy, apex.x - cx);
+      const thetaB = Math.atan2(B.y - cy, B.x - cx);
+      
+      // Normalize angular differences to [-PI, PI] to guarantee shortest path interpolation
+      let diff1 = thetaApex - thetaA;
+      diff1 = Math.atan2(Math.sin(diff1), Math.cos(diff1));
+      
+      let diff2 = thetaB - thetaApex;
+      diff2 = Math.atan2(Math.sin(diff2), Math.cos(diff2));
       
       const pts = [];
       for (let i = 0; i <= numPoints; i++) {
         const t = i / numPoints;
-        const angle = thetaA + t * sweepAngle;
+        let angle;
+        if (t <= 0.5) {
+          const t1 = t * 2;
+          angle = thetaA + t1 * diff1;
+        } else {
+          const t2 = (t - 0.5) * 2;
+          angle = thetaApex + t2 * diff2;
+        }
         pts.push({
           x: cx + R * Math.cos(angle),
           y: cy + R * Math.sin(angle)
         });
       }
+      
+      // Force exact start and end points
+      pts[0] = { ...A };
+      pts[pts.length - 1] = { ...B };
+      
       return pts;
     }
 
