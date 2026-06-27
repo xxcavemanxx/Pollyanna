@@ -58,14 +58,17 @@ export const PollyannaGame = {
       const activePlayer = G.players[ctx.playOrderPos];
       G.history.push(`🎲 ${activePlayer.name} rolled [${die1}, ${die2}] (Total: ${die1 + die2})`);
 
-      const legalMoves = getLegalMoves(ctx.playOrderPos, G.remainingMoves, G.pawns, G.rules);
+      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
       if (legalMoves.length === 0) {
         G.history.push(`🚫 No legal moves available for ${activePlayer.name}.`);
-        
-        G.hasRolled = false;
-        G.remainingMoves = [];
-        context.events.endTurn();
       }
+    },
+
+    skipTurn: (context: any) => {
+      const G: BoardgameG = context.G;
+      G.hasRolled = false;
+      G.remainingMoves = [];
+      context.events.endTurn();
     },
 
     movePawn: (context: any, pawnId: string, stepValue: number, useTurnout: boolean) => {
@@ -74,7 +77,8 @@ export const PollyannaGame = {
 
       if (!G.hasRolled) return;
 
-      const legalMoves = getLegalMoves(ctx.playOrderPos, G.remainingMoves, G.pawns, G.rules);
+      const activePlayer = G.players[ctx.playOrderPos];
+      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
       const valid = legalMoves.some(m => m.pawnId === pawnId && m.stepValue === stepValue && m.useTurnout === useTurnout);
 
       if (!valid) {
@@ -103,7 +107,7 @@ export const PollyannaGame = {
       G.remainingMoves = updatedState.remainingMoves;
       G.history = updatedState.history;
 
-      const remainingLegalMoves = getLegalMoves(ctx.playOrderPos, G.remainingMoves, G.pawns, G.rules);
+      const remainingLegalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
       if (G.remainingMoves.length === 0 || remainingLegalMoves.length === 0) {
         if (G.remainingMoves.length > 0 && remainingLegalMoves.length === 0) {
           G.history.push(`🚫 No legal moves left for ${G.players[ctx.playOrderPos].name}.`);
@@ -143,7 +147,7 @@ export const PollyannaGame = {
     const G: BoardgameG = context.G;
     for (let pIdx = 0; pIdx < G.players.length; pIdx++) {
       const allHome = G.pawns
-        .filter(p => p.playerIndex === pIdx)
+        .filter(p => p.playerIndex === G.players[pIdx].playerIndex)
         .every(p => p.isFinished);
       
       if (allHome) {
@@ -157,7 +161,11 @@ export const PollyannaGame = {
       if (!G.hasRolled) {
         return [{ move: 'rollDice' }];
       }
-      const legalMoves = getLegalMoves(ctx.playOrderPos, G.remainingMoves, G.pawns, G.rules);
+      const activePlayer = G.players[ctx.playOrderPos];
+      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
+      if (legalMoves.length === 0) {
+        return [{ move: 'skipTurn' }];
+      }
       return legalMoves.map(m => ({
         move: 'movePawn',
         args: [m.pawnId, m.stepValue, m.useTurnout]

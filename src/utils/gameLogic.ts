@@ -192,8 +192,9 @@ export const calculatePath = (
 
   // Regular step-by-step pathing
   for (let i = 0; i < steps; i++) {
-    // Only choose turnout on the first step that passes a branch index, or if currently at a branch
-    const chooseTurnoutThisStep = (i === 0 && useTurnout);
+    const isAtBranch = currentSpace.type === 'broadway' && 
+      Object.values(TURNOUT_CONFIGS).some(config => currentSpace.index === config.branchIndex);
+    const chooseTurnoutThisStep = isAtBranch && useTurnout;
     const nextSpace = getNextSingleStep(currentSpace, pawn.playerIndex, chooseTurnoutThisStep, rules);
     
     if (!nextSpace) {
@@ -331,7 +332,7 @@ export const getLegalMoves = (
       const canChooseTurnout = pawn.space.type === 'broadway' && 
         Object.values(TURNOUT_CONFIGS).some(config => {
           // Are we at or behind a turnout split?
-          const distToSplit = (config.branchIndex - pawn.space.index + 60) % 60;
+          const distToSplit = (pawn.space.index - config.branchIndex + 60) % 60;
           return distToSplit >= 0 && distToSplit < stepValue;
         });
 
@@ -359,6 +360,36 @@ export const getLegalMoves = (
         }
       }
     });
+
+    // If pawn is in base, also check if we can combine two remaining moves to enter
+    if (pawn.space.type === 'base' && rules.entryRoll !== 0) {
+      let hasCombination = false;
+      for (let i = 0; i < remainingMoves.length; i++) {
+        for (let j = i + 1; j < remainingMoves.length; j++) {
+          if (remainingMoves[i] + remainingMoves[j] === rules.entryRoll) {
+            hasCombination = true;
+            break;
+          }
+        }
+        if (hasCombination) break;
+      }
+
+      if (hasCombination) {
+        const pathStandard = calculatePath(pawn, rules.entryRoll, false, pawns, rules);
+        if (pathStandard) {
+          const alreadyExists = legalMoves.some(m => m.pawnId === pawn.id && m.stepValue === rules.entryRoll);
+          if (!alreadyExists) {
+            legalMoves.push({
+              pawnId: pawn.id,
+              stepValue: rules.entryRoll,
+              targetSpace: pathStandard[pathStandard.length - 1],
+              useTurnout: false,
+              path: pathStandard
+            });
+          }
+        }
+      }
+    }
   });
 
   // Mandatory entry roll restriction:
@@ -367,7 +398,17 @@ export const getLegalMoves = (
   // we filter the legal moves to ONLY those where a pawn in base moves out using that entryRoll.
   const entryVal = rules.entryRoll === 0 ? 6 : rules.entryRoll;
   const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
-  const hasEntryRoll = remainingMoves.includes(entryVal);
+  const hasEntryRoll = remainingMoves.includes(entryVal) || (() => {
+    for (let i = 0; i < remainingMoves.length; i++) {
+      for (let j = i + 1; j < remainingMoves.length; j++) {
+        if (remainingMoves[i] + remainingMoves[j] === entryVal) {
+          return true;
+        }
+      }
+    }
+    return false;
+  })();
+
   if (hasPawnInBase && hasEntryRoll) {
     const entryMoves = legalMoves.filter(m => {
       const p = pawns.find(p => p.id === m.pawnId);
@@ -463,17 +504,32 @@ export const makeMove = (
   const moveIdx = state.remainingMoves.indexOf(stepValue);
   if (moveIdx !== -1) {
     state.remainingMoves.splice(moveIdx, 1);
+  } else {
+    // Check if we combined two moves to equal stepValue
+    let combinedFound = false;
+    for (let i = 0; i < state.remainingMoves.length; i++) {
+      for (let j = i + 1; j < state.remainingMoves.length; j++) {
+        if (state.remainingMoves[i] + state.remainingMoves[j] === stepValue) {
+          state.remainingMoves.splice(j, 1);
+          state.remainingMoves.splice(i, 1);
+          combinedFound = true;
+          break;
+        }
+      }
+      if (combinedFound) break;
+    }
   }
 
   // Check for game winner
+  const activePlayer = state.players[state.currentTurn];
   const allHome = state.pawns
-    .filter(p => p.playerIndex === state.currentTurn)
+    .filter(p => p.playerIndex === activePlayer.playerIndex)
     .every(p => p.isFinished);
 
   if (allHome) {
     state.gameStatus = 'ended';
-    state.winnerId = state.players[state.currentTurn].id;
-    state.history.push(`🏆🏆🏆 Player ${state.players[state.currentTurn].name} has WON the game! 🏆🏆🏆`);
+    state.winnerId = activePlayer.id;
+    state.history.push(`🏆🏆🏆 Player ${activePlayer.name} has WON the game! 🏆🏆🏆`);
   }
 
   return state;

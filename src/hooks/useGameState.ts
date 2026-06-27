@@ -11,13 +11,10 @@ import {
 import { 
   DEFAULT_RULES, 
   createInitialPawns, 
-  getLegalMoves, 
-  makeMove,
   type GameState, 
   type Player, 
   type GameRules
 } from '../utils/gameLogic';
-import { selectAIMove } from '../utils/ai';
 
 const LOCAL_STORAGE_PLAYER_KEY = 'pollyanna_player_profile';
 
@@ -36,8 +33,7 @@ export const useGameState = (audioSystem: any) => {
   // Firestore listener cleanup ref
   const unsubscribeRef = useRef<(() => void) | null>(null);
   
-  // Prevent duplicate bot executions using a lock
-  const botExecutingRef = useRef<boolean>(false);
+
 
   // Load or generate local player profile (guest)
   useEffect(() => {
@@ -84,39 +80,7 @@ export const useGameState = (audioSystem: any) => {
     }
   }, []);
 
-  // Check turn completion conditions (no legal moves, empty moves, doubles)
-  const handleTurnCompletion = useCallback((state: GameState): GameState => {
-    if (!state.hasRolled) return state;
 
-    const legalMoves = getLegalMoves(state.currentTurn, state.remainingMoves, state.pawns, state.rules);
-
-    if (state.remainingMoves.length === 0 || legalMoves.length === 0) {
-      if (state.remainingMoves.length > 0 && legalMoves.length === 0) {
-        state.history.push(`🚫 No legal moves available for ${state.players[state.currentTurn].name}.`);
-      }
-
-      // Check if doubles were rolled and all moves were used successfully
-      const rolledDoubles = state.dice.length === 2 && state.dice[0] === state.dice[1];
-      
-      if (rolledDoubles && state.remainingMoves.length === 0 && state.gameStatus === 'playing') {
-        state.hasRolled = false;
-        state.remainingMoves = [];
-        state.history.push(`🔄 Doubles! ${state.players[state.currentTurn].name} gets another roll!`);
-      } else {
-        state.hasRolled = false;
-        state.remainingMoves = [];
-        
-        let nextTurn = (state.currentTurn + 1) % state.players.length;
-        state.currentTurn = nextTurn;
-        state.history.push(`⏰ It is now ${state.players[nextTurn].name}'s turn.`);
-        
-        // Play small turn notification chime
-        audioSystem.playTurn();
-      }
-    }
-    
-    return state;
-  }, [audioSystem]);
 
   // Create game room
   const createRoom = async (customRules: GameRules = DEFAULT_RULES) => {
@@ -277,6 +241,22 @@ export const useGameState = (audioSystem: any) => {
     }
 
     state.gameStatus = 'playing';
+
+    // Re-align player colors/seats based on total player count for proper opposite seats
+    const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+    if (state.players.length === 2) {
+      // Opposite sides: Player 0 is Green (0), Player 1 is Blue (3)
+      state.players[0].color = 'green';
+      state.players[0].playerIndex = 0;
+      state.players[1].color = 'blue';
+      state.players[1].playerIndex = 3;
+    } else {
+      state.players.forEach((p, idx) => {
+        p.color = colors[idx];
+        p.playerIndex = idx;
+      });
+    }
+
     state.pawns = createInitialPawns(state.players);
     state.currentTurn = 0;
     state.dice = [];
@@ -288,73 +268,6 @@ export const useGameState = (audioSystem: any) => {
     audioSystem.playSafety();
     saveState(state);
   };
-
-  // Roll the dice
-  const executeRoll = useCallback(() => {
-    if (!gameState || gameState.hasRolled || gameState.gameStatus !== 'playing') return;
-    
-    const state = JSON.parse(JSON.stringify(gameState)) as GameState;
-    const activePlayer = state.players[state.currentTurn];
-
-    // Roll two dice (1-6)
-    const die1 = Math.floor(Math.random() * 6) + 1;
-    const die2 = Math.floor(Math.random() * 6) + 1;
-
-    state.dice = [die1, die2];
-    state.hasRolled = true;
-
-    // Remaining moves is the individual dice values
-    state.remainingMoves = [die1, die2];
-    
-    state.history.push(`🎲 ${activePlayer.name} rolled [${die1}, ${die2}] (Total: ${die1 + die2})`);
-    
-    // Audio trigger
-    audioSystem.playRoll();
-
-    // Check if player has any legal moves
-    const legalMoves = getLegalMoves(state.currentTurn, state.remainingMoves, state.pawns, state.rules);
-    
-    if (legalMoves.length === 0) {
-      // Automatically advance turn if no moves exist
-      const finishedState = handleTurnCompletion(state);
-      saveState(finishedState);
-    } else {
-      saveState(state);
-    }
-  }, [gameState, saveState, handleTurnCompletion, audioSystem]);
-
-  // Execute a pawn movement
-  const executeMove = useCallback((pawnId: string, stepValue: number, useTurnout: boolean) => {
-    if (!gameState || !gameState.hasRolled || gameState.gameStatus !== 'playing') return;
-
-    // Verify it is a legal move
-    const legalMoves = getLegalMoves(gameState.currentTurn, gameState.remainingMoves, gameState.pawns, gameState.rules);
-    const valid = legalMoves.some(m => m.pawnId === pawnId && m.stepValue === stepValue && m.useTurnout === useTurnout);
-
-    if (!valid) {
-      console.warn("Invalid move attempted:", pawnId, stepValue, useTurnout);
-      return;
-    }
-
-    // Audio step tick
-    audioSystem.playStep();
-
-    let state = makeMove(gameState, pawnId, stepValue, useTurnout);
-    
-    // Play special chimes for capture or home
-    const latestLog = state.history[state.history.length - 1];
-    if (latestLog.includes("captured")) {
-      audioSystem.playCapture();
-    } else if (latestLog.includes("reached Home")) {
-      audioSystem.playHome();
-    } else if (latestLog.includes("WON")) {
-      audioSystem.playWin();
-    }
-
-    // Process turn completion or next rolling state
-    state = handleTurnCompletion(state);
-    saveState(state);
-  }, [gameState, saveState, handleTurnCompletion, audioSystem]);
 
   // Restart back to Lobby
   const restartToLobby = () => {
@@ -432,53 +345,6 @@ export const useGameState = (audioSystem: any) => {
     };
   }, []);
 
-  // Bot Auto-Play heart beat loop
-  useEffect(() => {
-    if (!gameState || gameState.gameStatus !== 'playing' || botExecutingRef.current) return;
-
-    const activePlayer = gameState.players[gameState.currentTurn];
-    if (!activePlayer || !activePlayer.isBot) return;
-
-    // Only the host (players[0]) executes bot logic in Firestore multiplayer to avoid racing
-    const hostPlayer = gameState.players[0];
-    if (isFirebaseEnabled && localPlayer && hostPlayer && hostPlayer.id !== localPlayer.id) {
-      return; // Do not execute bot turn if you are not the host
-    }
-
-    // Run bot move sequence
-    const triggerBotTurn = async () => {
-      botExecutingRef.current = true;
-
-      // 1. Roll the dice
-      if (!gameState.hasRolled) {
-        await new Promise(resolve => setTimeout(resolve, 1200)); // Natural bot thinking delay
-        executeRoll();
-        botExecutingRef.current = false;
-        return;
-      }
-
-      // 2. Decide and make the move
-      const legalMoves = getLegalMoves(gameState.currentTurn, gameState.remainingMoves, gameState.pawns, gameState.rules);
-      
-      if (legalMoves.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Natural pawn analysis delay
-        const difficulty = activePlayer.botDifficulty || 'medium';
-        const bestMove = selectAIMove(legalMoves, gameState.pawns, gameState.currentTurn, difficulty, gameState.rules);
-        
-        if (bestMove) {
-          executeMove(bestMove.pawnId, bestMove.stepValue, bestMove.useTurnout);
-        } else {
-          // Fallback just in case
-          executeMove(legalMoves[0].pawnId, legalMoves[0].stepValue, legalMoves[0].useTurnout);
-        }
-      }
-      
-      botExecutingRef.current = false;
-    };
-
-    triggerBotTurn();
-  }, [gameState, executeRoll, executeMove, localPlayer]);
-
   return {
     gameState,
     localPlayer,
@@ -489,8 +355,6 @@ export const useGameState = (audioSystem: any) => {
     addBot,
     removePlayer,
     startMatch,
-    executeRoll,
-    executeMove,
     restartToLobby,
     sendChatMessage,
     updateProfileName,

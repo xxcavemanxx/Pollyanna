@@ -5,6 +5,7 @@ import { RandomBot } from 'boardgame.io/ai';
 import { PollyannaGame, type BoardgameG } from '../utils/boardgameGame';
 import { Board } from './Board';
 import { Dice } from './Dice';
+import { getLegalMoves } from '../utils/gameLogic';
 
 interface BoardgameIOAppProps {
   setupData: {
@@ -14,6 +15,14 @@ interface BoardgameIOAppProps {
   localPlayerIndex: number;
   audioSystem: any;
   onExit: () => void;
+}
+
+class DelayedRandomBot extends RandomBot {
+  async play(state: any, playerID: string) {
+    // Add natural 2200ms delay for pacing
+    await new Promise((resolve) => setTimeout(resolve, 2200));
+    return super.play(state, playerID);
+  }
 }
 
 // Inline helper for player colors hex
@@ -80,7 +89,20 @@ const BoardgameIOBoard: React.FC<{
     }
   }, [G.dice, G.history, audioSystem]);
 
-  // AI bot execution logic is handled natively by boardgame.io's Local multiplayer bot orchestration.
+  // Auto skip turn if there are no legal moves available, after a 1.5s delay to let dice animate
+  useEffect(() => {
+    if (ctx.gameover) return;
+    const isLocalTurn = playerID === ctx.currentPlayer;
+    if (isLocalTurn && G.hasRolled && G.remainingMoves.length > 0) {
+      const legalMoves = getLegalMoves(activePlayerIndex, G.remainingMoves, G.pawns, G.rules);
+      if (legalMoves.length === 0) {
+        const timer = setTimeout(() => {
+          moves.skipTurn();
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, moves]);
 
   // Chat message submission
   const [chatInput, setChatInput] = React.useState('');
@@ -133,7 +155,7 @@ const BoardgameIOBoard: React.FC<{
             <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn (boardgame.io)</h3>
             <span 
               className="active-player-banner"
-              style={{ color: getPlayerColorHex(activePlayerIndex) }}
+              style={{ color: getPlayerColorHex(activePlayer?.playerIndex) }}
             >
               {activePlayer?.name}
               {activePlayer?.isBot ? ' 🤖' : ' 👤'}
@@ -191,7 +213,7 @@ const BoardgameIOBoard: React.FC<{
               return (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.playerIndex) }} />
+                     <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.playerIndex) }} />
                     <span style={{ fontSize: '0.9rem', fontWeight: activePlayerIndex === p.playerIndex ? 'bold' : 'normal' }}>
                       {p.name} {activePlayerIndex === p.playerIndex ? ' ⏰' : ''}
                     </span>
@@ -257,9 +279,9 @@ export const BoardgameIOApp: React.FC<BoardgameIOAppProps> = ({ setupData, local
     );
 
     const bots: Record<string, any> = {};
-    setupData.players.forEach((p) => {
+    setupData.players.forEach((p, idx) => {
       if (p.isBot) {
-        bots[p.playerIndex.toString()] = RandomBot;
+        bots[idx.toString()] = DelayedRandomBot;
       }
     });
 
@@ -281,3 +303,4 @@ export const BoardgameIOApp: React.FC<BoardgameIOAppProps> = ({ setupData, local
     />
   );
 };
+

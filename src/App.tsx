@@ -2,17 +2,15 @@ import { useState, useEffect } from 'react';
 import './App.css';
 import { useAudio } from './hooks/useAudio';
 import { useGameState } from './hooks/useGameState';
-import { Board } from './components/Board';
-import { BoardgameIOApp } from './components/BoardgameIOApp';
-import { Dice } from './components/Dice';
 import { GameLobby } from './components/GameLobby';
 import { GameChat } from './components/GameChat';
 import { Auth } from './components/Auth';
+import { BoardgameIOApp } from './components/BoardgameIOApp';
 import { Leaderboard } from './components/Leaderboard';
 import { DEFAULT_RULES } from './utils/gameLogic';
 
 function App() {
-  const [view, setView] = useState<'home' | 'lobby' | 'game' | 'bgio-game'>('home');
+  const [view, setView] = useState<'home' | 'lobby' | 'bgio-game'>('home');
   const [roomCodeInput, setRoomCodeInput] = useState('');
   
   // Initialize self-contained Synthesizer Audio System
@@ -29,8 +27,6 @@ function App() {
     addBot,
     removePlayer,
     startMatch,
-    executeRoll,
-    executeMove,
     restartToLobby,
     sendChatMessage,
     updateProfileName,
@@ -42,16 +38,12 @@ function App() {
   useEffect(() => {
     if (gameState) {
       if (gameState.gameStatus === 'playing') {
-        if (gameState.rules.useBgioEngine) {
-          setView('bgio-game');
-        } else {
-          setView('game');
-        }
+        setView('bgio-game');
       } else if (gameState.gameStatus === 'lobby') {
         setView('lobby');
       }
     }
-  }, [gameState?.gameStatus, gameState?.rules?.useBgioEngine]);
+  }, [gameState?.gameStatus]);
 
   const handleCreateRoom = async () => {
     const code = await createRoom();
@@ -95,9 +87,9 @@ function App() {
   // Let's read lines 380 to 415 in `useGameState.ts` to locate the export block.
 
   return (
-    <div className={`app-root ${view === 'game' || view === 'bgio-game' ? 'game-mode' : ''}`}>
+    <div className={`app-root ${view === 'bgio-game' ? 'game-mode' : ''}`}>
       {/* Premium Header */}
-      {view !== 'game' && view !== 'bgio-game' && (
+      {view !== 'bgio-game' && (
         <header className="main-title-header">
           <h1>POLLYANNA</h1>
           <p>Tactical Board Championship</p>
@@ -215,113 +207,7 @@ function App() {
         </div>
       )}
 
-      {/* 3. GAMEPLAY MATCH VIEW */}
-      {view === 'game' && gameState && !loading && (
-        <div className="game-screen-layout">
-          
-          {/* Main Board Visualizer */}
-          <div className="board-column">
-            <Board 
-              gameState={gameState}
-              localPlayerId={localPlayer?.id || ''}
-              onMoveExecute={executeMove}
-            />
-          </div>
 
-          {/* Interactive Player Dashboard & controls */}
-          <div className="dashboard-column">
-            
-            {/* Turn Card Status */}
-            <div className="glass-panel active-turn-card">
-              <div>
-                <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn</h3>
-                <span 
-                  className="active-player-banner"
-                  style={{ color: getPlayerColorHex(gameState.currentTurn) }}
-                >
-                  {gameState.players[gameState.currentTurn]?.name}
-                  {gameState.players[gameState.currentTurn]?.isBot ? ' 🤖' : ' 👤'}
-                </span>
-              </div>
-
-              {/* Dice Roller widget */}
-              <Dice 
-                values={gameState.dice}
-                isRolling={gameState.hasRolled && gameState.dice.length > 0}
-                onRollClick={
-                  (gameState.players[gameState.currentTurn]?.id === localPlayer?.id && !gameState.hasRolled)
-                    ? executeRoll 
-                    : undefined
-                }
-                disabled={gameState.hasRolled}
-              />
-
-              {/* Status details */}
-              <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.85rem' }}>
-                {gameState.remainingMoves.length > 0 ? (
-                  <p>Remaining Moves to resolve: <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{gameState.remainingMoves.join(', ')}</span></p>
-                ) : (
-                  <p>{gameState.hasRolled ? 'Resolving turn...' : 'Waiting for roll...'}</p>
-                )}
-              </div>
-
-              {/* Sound & Exit controls */}
-              <div className="action-row-game">
-                <button 
-                  onClick={audioSystem.toggleMute}
-                  className="btn-premium"
-                  style={{ minWidth: '100px' }}
-                >
-                  {audioSystem.muted ? '🔇 Unmute' : '🔊 Mute SFX'}
-                </button>
-
-                <button 
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to forfeit this match and return to Home?")) {
-                      restartToLobby();
-                      setView('home');
-                    }
-                  }}
-                  className="btn-premium btn-exit-game"
-                >
-                  🏳️ Exit Match
-                </button>
-              </div>
-            </div>
-
-            {/* List of active players inside the game card */}
-            <div className="glass-panel" style={{ padding: '1.25rem' }}>
-              <h3 className="sub-section-title" style={{ marginBottom: '0.75rem' }}>🏆 Scoreboard Pawns Finished</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {gameState.players.map((p) => {
-                  const finishedCount = gameState.pawns.filter(o => o.playerIndex === p.playerIndex && o.isFinished).length;
-                  return (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.playerIndex) }} />
-                        <span style={{ fontSize: '0.9rem', fontWeight: gameState.currentTurn === p.playerIndex ? 'bold' : 'normal' }}>
-                          {p.name} {gameState.currentTurn === p.playerIndex ? ' ⏰' : ''}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10b981' }}>
-                        {finishedCount} / 4 Home
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Live Chat logging feed in gameplay */}
-            <GameChat 
-              history={gameState.history}
-              onSendMessage={sendChatMessage}
-            />
-
-          </div>
-
-        </div>
-      )}
 
       {/* 4. BOARDGAME.IO GAMEPLAY MATCH VIEW */}
       {view === 'bgio-game' && gameState && !loading && (
@@ -346,15 +232,6 @@ function App() {
   );
 }
 
-// Inline helper for player colors hex
-function getPlayerColorHex(playerIndex: number): string {
-  switch (playerIndex) {
-    case 0: return '#10b981'; // Green
-    case 1: return '#f59e0b'; // Yellow
-    case 2: return '#ef4444'; // Red
-    case 3: return '#3b82f6'; // Blue
-    default: return '#9ca3af';
-  }
-}
+
 
 export default App;

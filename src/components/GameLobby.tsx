@@ -27,8 +27,6 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
   const [captureBonus, setCaptureBonus] = useState(gameState.rules.captureBonus);
   const [turnoutExtraLength, setTurnoutExtraLength] = useState(gameState.rules.turnoutExtraLength);
   const [turnTimeLimit, setTurnTimeLimit] = useState(gameState.rules.turnTimeLimit);
-  const [useBgioEngine, setUseBgioEngine] = useState(gameState.rules.useBgioEngine ?? true);
-
   const handleApplyRules = (e: React.FormEvent) => {
     e.preventDefault();
     onRulesUpdate({
@@ -37,7 +35,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
       captureBonus: Number(captureBonus),
       turnoutExtraLength: Number(turnoutExtraLength),
       turnTimeLimit: Number(turnTimeLimit),
-      useBgioEngine
+      useBgioEngine: true
     });
     alert("⚡ Rules updated successfully!");
   };
@@ -215,17 +213,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
               </label>
             </div>
 
-            <div className="form-group row-group" style={{ marginTop: '0.5rem' }}>
-              <label className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={useBgioEngine} 
-                  onChange={(e) => setUseBgioEngine(e.target.checked)}
-                  disabled={!isHost}
-                />
-                <span>Use boardgame.io Game Engine</span>
-              </label>
-            </div>
+
 
             {isHost && (
               <button type="submit" className="btn-premium btn-apply-rules">
