@@ -46,6 +46,7 @@ export interface GameState {
   winnerId: string | null;
   history: string[];
   rules: GameRules;
+  lastMovedPawnId?: string | null;
 }
 
 export const DEFAULT_RULES: GameRules = {
@@ -158,6 +159,17 @@ export const getNextSingleStep = (
   return { type: 'broadway', index: (currentSpace.index - 1 + 60) % 60 };
 };
 
+// Check if a space is in the home path or the home entrance space on Broadway
+export const isHomePathOrEntrance = (space: GameSpace, playerIndex: number): boolean => {
+  if (space.type === 'homePath' && space.playerIndex === playerIndex) {
+    return true;
+  }
+  if (space.type === 'broadway' && space.index === HOME_ENTRANCES[playerIndex]) {
+    return true;
+  }
+  return false;
+};
+
 // Calculate entire path for a move. Returns list of spaces traversed.
 // Returns null if the move is invalid (e.g. blocked by blockade, single-track turnout rule, or goes past home)
 export const calculatePath = (
@@ -165,9 +177,18 @@ export const calculatePath = (
   steps: number,
   useTurnout: boolean,
   pawns: PawnState[],
-  rules: GameRules
+  rules: GameRules,
+  lastMovedPawnId?: string | null
 ): GameSpace[] | null => {
   if (pawn.isFinished) return null;
+
+  // Pawn in home path can only be moved when the roll is the exact amount to land on home.
+  // Exception: if the pawn is the lastMovedPawnId (i.e. it just entered this turn), it can continue moving.
+  if (pawn.space.type === 'homePath' && pawn.id !== lastMovedPawnId) {
+    if (steps !== 6 - pawn.space.index) {
+      return null;
+    }
+  }
 
   const path: GameSpace[] = [];
   let currentSpace = { ...pawn.space };
@@ -199,6 +220,20 @@ export const calculatePath = (
     
     if (!nextSpace) {
       return null; // Went past Home or tried to move from Home
+    }
+
+    // Pawns in home path cannot be passed or share a space (with the exception of the home entrance)
+    if (nextSpace.type === 'homePath') {
+      const isOccupied = pawns.some(p =>
+        !p.isFinished &&
+        p.id !== pawn.id &&
+        p.space.type === 'homePath' &&
+        p.space.index === nextSpace.index &&
+        p.space.playerIndex === pawn.playerIndex
+      );
+      if (isOccupied) {
+        return null; // Blocked: cannot pass or land on another pawn in the home path
+      }
     }
 
     // Check if landing on an opponent's safety space
@@ -312,7 +347,8 @@ export const getLegalMoves = (
   playerIndex: number,
   remainingMoves: number[],
   pawns: PawnState[],
-  rules: GameRules
+  rules: GameRules,
+  lastMovedPawnId?: string | null
 ): LegalMove[] => {
   const playerPawns = pawns.filter(p => p.playerIndex === playerIndex && !p.isFinished);
   const legalMoves: LegalMove[] = [];
@@ -323,13 +359,24 @@ export const getLegalMoves = (
   playerPawns.forEach(pawn => {
     movesToCheck.forEach(stepValue => {
       // Check standard Broadway path
-      const pathStandard = calculatePath(pawn, stepValue, false, pawns, rules);
+      const pathStandard = calculatePath(pawn, stepValue, false, pawns, rules, lastMovedPawnId);
       
       // If base, we must respect the entryRoll condition
       let isAllowed = true;
       if (pawn.space.type === 'base') {
         if (rules.entryRoll !== 0 && stepValue !== rules.entryRoll) {
           isAllowed = false;
+        }
+      }
+
+      // Check starting area vs home path priority: if the move lands on home, starts in home path/entrance,
+      // is for the entry roll, and there is a pawn in base, it is disallowed.
+      if (pathStandard && pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+        if (rules.entryRoll > 0 && stepValue === rules.entryRoll) {
+          const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
+          if (hasPawnInBase) {
+            isAllowed = false; // Must move base pawn out first
+          }
         }
       }
 
@@ -352,25 +399,37 @@ export const getLegalMoves = (
         });
 
       if (canChooseTurnout) {
-        const pathTurnout = calculatePath(pawn, stepValue, true, pawns, rules);
+        const pathTurnout = calculatePath(pawn, stepValue, true, pawns, rules, lastMovedPawnId);
         if (pathTurnout) {
-          // Avoid duplicate landing space if turnout merges immediately or doesn't change landing spot
-          const targetStandard = pathStandard ? pathStandard[pathStandard.length - 1] : null;
-          const targetTurnout = pathTurnout[pathTurnout.length - 1];
-          
-          const isSameTarget = targetStandard && 
-            targetStandard.type === targetTurnout.type && 
-            targetStandard.index === targetTurnout.index &&
-            targetStandard.playerIndex === targetTurnout.playerIndex;
+          let isTurnoutAllowed = true;
+          if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+            if (rules.entryRoll > 0 && stepValue === rules.entryRoll) {
+              const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
+              if (hasPawnInBase) {
+                isTurnoutAllowed = false;
+              }
+            }
+          }
 
-          if (!isSameTarget) {
-            legalMoves.push({
-              pawnId: pawn.id,
-              stepValue,
-              targetSpace: targetTurnout,
-              useTurnout: true,
-              path: pathTurnout
-            });
+          if (isTurnoutAllowed) {
+            // Avoid duplicate landing space if turnout merges immediately or doesn't change landing spot
+            const targetStandard = pathStandard ? pathStandard[pathStandard.length - 1] : null;
+            const targetTurnout = pathTurnout[pathTurnout.length - 1];
+            
+            const isSameTarget = targetStandard && 
+              targetStandard.type === targetTurnout.type && 
+              targetStandard.index === targetTurnout.index &&
+              targetStandard.playerIndex === targetTurnout.playerIndex;
+
+            if (!isSameTarget) {
+              legalMoves.push({
+                pawnId: pawn.id,
+                stepValue,
+                targetSpace: targetTurnout,
+                useTurnout: true,
+                path: pathTurnout
+              });
+            }
           }
         }
       }
@@ -390,7 +449,7 @@ export const getLegalMoves = (
       }
 
       if (hasCombination) {
-        const pathStandard = calculatePath(pawn, rules.entryRoll, false, pawns, rules);
+        const pathStandard = calculatePath(pawn, rules.entryRoll, false, pawns, rules, lastMovedPawnId);
         if (pathStandard) {
           const alreadyExists = legalMoves.some(m => m.pawnId === pawn.id && m.stepValue === rules.entryRoll);
           if (!alreadyExists) {
@@ -405,12 +464,109 @@ export const getLegalMoves = (
         }
       }
     }
+
+    // Check combined moves: If the sum of both dice is valid,
+    // allow the player to move the pawn directly by that sum.
+    if (!pawn.isFinished && remainingMoves.length >= 2) {
+      const sumsToCheck: { sum: number; components: [number, number] }[] = [];
+      for (let i = 0; i < remainingMoves.length; i++) {
+        for (let j = i + 1; j < remainingMoves.length; j++) {
+          const sum = remainingMoves[i] + remainingMoves[j];
+          if (!sumsToCheck.some(s => s.sum === sum)) {
+            sumsToCheck.push({ sum, components: [remainingMoves[i], remainingMoves[j]] });
+          }
+        }
+      }
+
+      sumsToCheck.forEach(({ sum, components }) => {
+        const pathStandard = calculatePath(pawn, sum, false, pawns, rules, lastMovedPawnId);
+        if (pathStandard) {
+          // Priority rule: if the move lands on home and uses the entry roll, and there is a pawn in base, disallow it
+          let isAllowed = true;
+          if (pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+            if (rules.entryRoll > 0 && (components[0] === rules.entryRoll || components[1] === rules.entryRoll)) {
+              const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
+              if (hasPawnInBase) {
+                isAllowed = false;
+              }
+            }
+          }
+
+          if (isAllowed) {
+            const alreadyExists = legalMoves.some(m => m.pawnId === pawn.id && m.stepValue === sum && !m.useTurnout);
+            if (!alreadyExists) {
+              legalMoves.push({
+                pawnId: pawn.id,
+                stepValue: sum,
+                targetSpace: pathStandard[pathStandard.length - 1],
+                useTurnout: false,
+                path: pathStandard
+              });
+            }
+          }
+        }
+
+        const canChooseTurnout = pawn.space.type === 'broadway' && 
+          Object.values(TURNOUT_CONFIGS).some(config => {
+            const distToSplit = (pawn.space.index - config.branchIndex + 60) % 60;
+            return distToSplit >= 0 && distToSplit < sum;
+          });
+
+        if (canChooseTurnout) {
+          const pathTurnout = calculatePath(pawn, sum, true, pawns, rules, lastMovedPawnId);
+          if (pathTurnout) {
+            let isAllowed = true;
+            if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+              if (rules.entryRoll > 0 && (components[0] === rules.entryRoll || components[1] === rules.entryRoll)) {
+                const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
+                if (hasPawnInBase) {
+                  isAllowed = false;
+                }
+              }
+            }
+
+            if (isAllowed) {
+              const targetStandard = pathStandard ? pathStandard[pathStandard.length - 1] : null;
+              const targetTurnout = pathTurnout[pathTurnout.length - 1];
+              
+              const isSameTarget = targetStandard && 
+                targetStandard.type === targetTurnout.type && 
+                targetStandard.index === targetTurnout.index &&
+                targetStandard.playerIndex === targetTurnout.playerIndex;
+
+              if (!isSameTarget) {
+                const alreadyExists = legalMoves.some(m => m.pawnId === pawn.id && m.stepValue === sum && m.useTurnout);
+                if (!alreadyExists) {
+                  legalMoves.push({
+                    pawnId: pawn.id,
+                    stepValue: sum,
+                    targetSpace: targetTurnout,
+                    useTurnout: true,
+                    path: pathTurnout
+                  });
+                }
+              }
+            }
+          }
+        }
+      });
+    }
   });
+
+  // Mandatory home move restriction:
+  // "When a pawn in the home path/entrance can be moved onto the home space, the player MUST move that pawn onto the home space."
+  const homeMoves = legalMoves.filter(m => {
+    if (m.targetSpace.type !== 'home') return false;
+    const p = pawns.find(p => p.id === m.pawnId);
+    return p && isHomePathOrEntrance(p.space, playerIndex);
+  });
+
+  if (homeMoves.length > 0) {
+    return homeMoves;
+  }
 
   // Mandatory entry roll restriction:
   // "When rolling a six and a piece isn't out yet, you must move that piece onto the first space for that player."
-  // If there's any pawn in base, and the entryRoll value (default 6) is in remainingMoves,
-  // we filter the legal moves to ONLY those where a pawn in base moves out using that entryRoll.
   const entryVal = rules.entryRoll === 0 ? 6 : rules.entryRoll;
   const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
   const hasEntryRoll = remainingMoves.includes(entryVal) || (() => {
@@ -461,6 +617,7 @@ export const makeMove = (
   useTurnout: boolean
 ): GameState => {
   const state = JSON.parse(JSON.stringify(gameState)) as GameState;
+  state.lastMovedPawnId = pawnId;
   const pawnIndex = state.pawns.findIndex(p => p.id === pawnId);
   if (pawnIndex === -1) return state;
 
@@ -468,7 +625,7 @@ export const makeMove = (
   const rules = state.rules;
 
   // Calculate full path to apply stepsTraveled and landing
-  const path = calculatePath(pawn, stepValue, useTurnout, state.pawns, rules);
+  const path = calculatePath(pawn, stepValue, useTurnout, state.pawns, rules, state.lastMovedPawnId);
   if (!path) return state;
 
   const targetSpace = path[path.length - 1];

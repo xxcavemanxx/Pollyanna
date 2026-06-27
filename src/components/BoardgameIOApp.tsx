@@ -94,7 +94,7 @@ const BoardgameIOBoard: React.FC<{
     if (ctx.gameover) return;
     const isLocalTurn = playerID === ctx.currentPlayer;
     if (isLocalTurn && G.hasRolled && G.remainingMoves.length > 0) {
-      const legalMoves = getLegalMoves(activePlayer ? activePlayer.playerIndex : activePlayerIndex, G.remainingMoves, G.pawns, G.rules);
+      const legalMoves = getLegalMoves(activePlayer ? activePlayer.playerIndex : activePlayerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
       if (legalMoves.length === 0) {
         const timer = setTimeout(() => {
           moves.skipTurn();
@@ -102,7 +102,7 @@ const BoardgameIOBoard: React.FC<{
         return () => clearTimeout(timer);
       }
     }
-  }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, moves]);
+  }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, G.lastMovedPawnId, moves]);
 
   // Chat message submission
   const [chatInput, setChatInput] = React.useState('');

@@ -16,6 +16,7 @@ export interface BoardgameG {
   history: string[];
   rules: GameRules;
   players: Player[];
+  lastMovedPawnId?: string | null;
 }
 
 export const PollyannaGame = {
@@ -37,7 +38,8 @@ export const PollyannaGame = {
       hasRolled: false,
       history: ['Game initialized using boardgame.io!'],
       rules,
-      players
+      players,
+      lastMovedPawnId: null
     };
   },
 
@@ -58,7 +60,7 @@ export const PollyannaGame = {
       const activePlayer = G.players[ctx.playOrderPos];
       G.history.push(`🎲 ${activePlayer.name} rolled [${die1}, ${die2}] (Total: ${die1 + die2})`);
 
-      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
+      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
       if (legalMoves.length === 0) {
         G.history.push(`🚫 No legal moves available for ${activePlayer.name}.`);
       }
@@ -78,7 +80,7 @@ export const PollyannaGame = {
       if (!G.hasRolled) return;
 
       const activePlayer = G.players[ctx.playOrderPos];
-      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
+      const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
       const valid = legalMoves.some(m => m.pawnId === pawnId && m.stepValue === stepValue && m.useTurnout === useTurnout);
 
       if (!valid) {
@@ -98,7 +100,8 @@ export const PollyannaGame = {
         gameStatus: 'playing' as const,
         winnerId: null,
         history: G.history,
-        rules: G.rules
+        rules: G.rules,
+        lastMovedPawnId: G.lastMovedPawnId
       };
 
       const updatedState = makeMove(tempState, pawnId, stepValue, useTurnout);
@@ -106,8 +109,9 @@ export const PollyannaGame = {
       G.pawns = updatedState.pawns;
       G.remainingMoves = updatedState.remainingMoves;
       G.history = updatedState.history;
+      G.lastMovedPawnId = updatedState.lastMovedPawnId;
 
-      const remainingLegalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules);
+      const remainingLegalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
       if (G.remainingMoves.length === 0 || remainingLegalMoves.length === 0) {
         if (G.remainingMoves.length > 0 && remainingLegalMoves.length === 0) {
           G.history.push(`🚫 No legal moves left for ${G.players[ctx.playOrderPos].name}.`);
@@ -117,10 +121,12 @@ export const PollyannaGame = {
         if (rolledDoubles && G.remainingMoves.length === 0) {
           G.hasRolled = false;
           G.remainingMoves = [];
+          G.lastMovedPawnId = null;
           G.history.push(`🔄 Doubles! ${G.players[ctx.playOrderPos].name} gets another roll!`);
         } else {
           G.hasRolled = false;
           G.remainingMoves = [];
+          G.lastMovedPawnId = null;
           context.events.endTurn();
         }
       }
@@ -139,6 +145,7 @@ export const PollyannaGame = {
       G.dice = [];
       G.remainingMoves = [];
       G.hasRolled = false;
+      G.lastMovedPawnId = null;
       G.history.push(`⏰ It is now ${activePlayer.name}'s turn.`);
     }
   },

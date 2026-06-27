@@ -102,7 +102,7 @@ export const Board: React.FC<BoardProps> = ({
   const pawns = resolvedGameState.pawns;
 
   const legalMoves = (isLocalTurn && resolvedGameState.hasRolled) 
-    ? getLegalMoves(currentTurnPlayer ? currentTurnPlayer.playerIndex : resolvedGameState.currentTurn, resolvedGameState.remainingMoves, pawns, rules)
+    ? getLegalMoves(currentTurnPlayer ? currentTurnPlayer.playerIndex : resolvedGameState.currentTurn, resolvedGameState.remainingMoves, pawns, rules, resolvedGameState.lastMovedPawnId)
     : [];
 
   const handlePawnClick = (pawnId: string) => {
@@ -162,17 +162,6 @@ export const Board: React.FC<BoardProps> = ({
   const activePawnMoves = selectedPawnId 
     ? legalMoves.filter(m => m.pawnId === selectedPawnId)
     : [];
-
-  const getPlayerColorHex = (idx: number) => {
-    switch (idx) {
-      case 0: return '#006837'; // Forest Green
-      case 1: return '#eab308'; // Premium Vibrant Yellow
-      case 2: return '#e31b23'; // Warm Red
-      case 3: return '#0055c4'; // Royal Blue
-      default: return '#9ca3af';
-    }
-  };
-
   return (
     <div className="board-wrapper">
       <svg 
@@ -315,24 +304,13 @@ export const Board: React.FC<BoardProps> = ({
 
         {/* 13. Pawns */}
         {pawns.map((pawn) => {
-          if (pawn.isFinished && pawn.space.type === 'home') {
-            const pos = HOME_COORDS[pawn.playerIndex];
-            return (
-              <circle 
-                key={`finished-pawn-${pawn.id}`}
-                cx={pos.x + (pawn.pawnIndex % 2 === 0 ? -4 : 4)}
-                cy={pos.y + (pawn.pawnIndex < 2 ? -4 : 4)}
-                r="3.5"
-                fill={getPlayerColorHex(pawn.playerIndex)}
-                stroke="#ffffff"
-                strokeWidth="1"
-              />
-            );
-          }
-
           let x = 0;
           let y = 0;
-          if (animatingPawn && animatingPawn.pawnId === pawn.id) {
+          if (pawn.space.type === 'home') {
+            const pos = HOME_COORDS[pawn.playerIndex];
+            x = pos.x + (pawn.pawnIndex % 2 === 0 ? -12 : 12);
+            y = pos.y + (pawn.pawnIndex < 2 ? -12 : 12);
+          } else if (animatingPawn && animatingPawn.pawnId === pawn.id) {
             const currentCoord = animatingPawn.coords[animatingPawn.currentIndex];
             x = currentCoord.x;
             y = currentCoord.y;

@@ -2,14 +2,10 @@
 
 ### 🐞Bugs
 
-- Moving pawn out and landing on enemy isn't sending them home
 - Chat
 - Avatars
-- Can't send opponent's home
-- Home path rules aren't working:
-  - Not required to move pawn that's in home path into home when roll allows it
-  - Can move pawn that's already in home path less than exact amount needed to land on home
-- The pawn currently selected to move is hovering mostly off screen in the top-right corner
+- The pawn currently selected to move is hovering mostly off screen in the top-left corner
+- When moving a pawn into the home path, if there are remaining moves after moving the first die amount, the player can move the same pawn the remaining moves. This is because a player is allowed to move the amount of the combined dice as if it were one move.
 
 ---
 
