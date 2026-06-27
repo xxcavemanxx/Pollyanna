@@ -1,31 +1,31 @@
 import React, { useEffect, useRef } from 'react';
 import { Client } from 'boardgame.io/react';
-import { Local } from 'boardgame.io/multiplayer';
+import { Local, SocketIO } from 'boardgame.io/multiplayer';
 import { RandomBot } from 'boardgame.io/ai';
 import { PollyannaGame, type BoardgameG } from '../utils/boardgameGame';
 import { Board } from './Board';
 import { Dice } from './Dice';
 import { getLegalMoves } from '../utils/gameLogic';
+import { GameLobby } from './GameLobby';
+import { GameChat } from './GameChat';
 
 interface BoardgameIOAppProps {
-  setupData: {
-    rules: any;
-    players: any[];
-  };
+  roomId: string;
+  credentials?: string | null;
   localPlayerIndex: number;
+  isLocal: boolean;
+  offlineSetupData?: any;
   audioSystem: any;
   onExit: () => void;
 }
 
 class DelayedRandomBot extends RandomBot {
   async play(state: any, playerID: string) {
-    // Add natural 2200ms delay for pacing
     await new Promise((resolve) => setTimeout(resolve, 2200));
     return super.play(state, playerID);
   }
 }
 
-// Inline helper for player colors hex
 function getPlayerColorHex(playerIndex: number): string {
   switch (playerIndex) {
     case 0: return '#10b981'; // Green
@@ -43,11 +43,9 @@ const BoardgameIOBoard: React.FC<{
   playerID: string | null;
   isActive: boolean;
   events: any;
-  // Custom props passed through boardProps
   audioSystem: any;
   onExit: () => void;
 }> = ({ G, ctx, moves, playerID, audioSystem, onExit }) => {
-  
   const activePlayerIndex = ctx.playOrderPos;
   const activePlayer = G.players[activePlayerIndex];
   const isLocalTurn = playerID === ctx.currentPlayer;
@@ -55,15 +53,29 @@ const BoardgameIOBoard: React.FC<{
   const prevDiceRef = useRef<number[]>([]);
   const prevHistoryLenRef = useRef<number>(0);
 
+  // Load player details from localStorage and register with G.players
+  useEffect(() => {
+    const saved = localStorage.getItem('pollyanna_player_profile');
+    if (saved && playerID !== null) {
+      try {
+        const profile = JSON.parse(saved);
+        const mySeat = G.players[parseInt(playerID, 10)];
+        if (!mySeat || mySeat.id !== profile.id || mySeat.name !== profile.name) {
+          moves.updatePlayerInfo(profile.name, profile.id);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [playerID, G.players, moves]);
+
   // Sync boardgame.io history with Synthesizer Audio system
   useEffect(() => {
-    // 1. Roll dice sound
     if (G.dice.length > 0 && JSON.stringify(G.dice) !== JSON.stringify(prevDiceRef.current)) {
       audioSystem.playRoll();
       prevDiceRef.current = G.dice;
     }
 
-    // 2. Play game events sound
     if (G.history.length > prevHistoryLenRef.current) {
       if (prevHistoryLenRef.current > 0) {
         const newLogs = G.history.slice(prevHistoryLenRef.current);
@@ -91,7 +103,7 @@ const BoardgameIOBoard: React.FC<{
 
   // Auto skip turn if there are no legal moves available, after a 1.5s delay to let dice animate
   useEffect(() => {
-    if (ctx.gameover) return;
+    if (ctx.gameover || G.gameStatus !== 'playing') return;
     const isLocalTurn = playerID === ctx.currentPlayer;
     if (isLocalTurn && G.hasRolled && G.remainingMoves.length > 0) {
       const legalMoves = getLegalMoves(activePlayer ? activePlayer.playerIndex : activePlayerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
@@ -102,18 +114,73 @@ const BoardgameIOBoard: React.FC<{
         return () => clearTimeout(timer);
       }
     }
-  }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, G.lastMovedPawnId, moves]);
+  }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, G.lastMovedPawnId, G.gameStatus, moves]);
 
-  // Chat message submission
   const [chatInput, setChatInput] = React.useState('');
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || !playerID) return;
-    const localPlayerProfile = G.players.find(p => p.id === playerID);
+    const localPlayerProfile = G.players[parseInt(playerID, 10)];
     const senderName = localPlayerProfile ? localPlayerProfile.name : `Player ${playerID}`;
-    G.history.push(`💬 [${senderName}]: ${chatInput}`);
+    moves.sendChatMessage(chatInput, senderName);
     setChatInput('');
   };
+
+  // If in Lobby mode: render Lobby UI hooked up to boardgame.io moves!
+  if (G.gameStatus === 'lobby') {
+    const isHost = playerID === '0';
+    const profileSaved = localStorage.getItem('pollyanna_player_profile');
+    const localProfile = profileSaved ? JSON.parse(profileSaved) : { id: 'guest', name: 'Guest' };
+    
+    // Filter empty seats for Lobby UI compatibility
+    const nonEmptyPlayers = G.players.filter(p => !p.id.startsWith('empty_'));
+    const mappedGameState = {
+      ...G,
+      players: nonEmptyPlayers
+    };
+
+    return (
+      <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button 
+            onClick={() => {
+              if (window.confirm("Are you sure you want to leave the lobby?")) {
+                onExit();
+              }
+            }} 
+            className="btn-premium"
+          >
+            ⬅️ Exit to Home
+          </button>
+          
+          <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-muted)' }}>
+            Room Lobby Code: <span style={{ color: '#10b981', fontWeight: 'bold', letterSpacing: '1px' }}>{playerID !== null ? 'CONNECTED' : 'SPECTATING'}</span>
+          </h2>
+        </div>
+
+        <GameLobby 
+          gameState={mappedGameState as any}
+          localPlayerId={localProfile.id}
+          isHost={isHost}
+          onAddBot={(diff) => moves.addBot(diff)}
+          onRemovePlayer={(pid) => {
+            const idx = G.players.findIndex(p => p.id === pid);
+            if (idx !== -1) moves.removePlayer(idx);
+          }}
+          onStartMatch={() => moves.startMatch()}
+          onRulesUpdate={(rules) => moves.updateRoomRules(rules)}
+          roomId={playerID !== null ? 'CONNECTED' : 'SPECTATING'}
+        />
+
+        <div style={{ marginTop: '2rem' }}>
+          <GameChat 
+            history={G.history}
+            onSendMessage={(msg) => moves.sendChatMessage(msg, localProfile.name)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="game-screen-layout">
@@ -152,7 +219,7 @@ const BoardgameIOBoard: React.FC<{
         {/* Active Turn and Dice roller */}
         <div className="glass-panel active-turn-card">
           <div>
-            <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn (boardgame.io)</h3>
+            <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn</h3>
             <span 
               className="active-player-banner"
               style={{ color: getPlayerColorHex(activePlayer?.playerIndex) }}
@@ -193,7 +260,7 @@ const BoardgameIOBoard: React.FC<{
 
             <button 
               onClick={() => {
-                if (window.confirm("Return to main lobby? This will end the boardgame.io session.")) {
+                if (window.confirm("Return to main menu? This will end the boardgame.io session.")) {
                   onExit();
                 }
               }}
@@ -268,7 +335,15 @@ const BoardgameIOBoard: React.FC<{
   );
 };
 
-export const BoardgameIOApp: React.FC<BoardgameIOAppProps> = ({ setupData, localPlayerIndex, audioSystem, onExit }) => {
+export const BoardgameIOApp: React.FC<BoardgameIOAppProps> = ({ 
+  roomId, 
+  credentials, 
+  localPlayerIndex, 
+  isLocal, 
+  offlineSetupData, 
+  audioSystem, 
+  onExit 
+}) => {
   const PollyannaClient = React.useMemo(() => {
     const BoardWrapper = (props: any) => (
       <BoardgameIOBoard 
@@ -278,29 +353,46 @@ export const BoardgameIOApp: React.FC<BoardgameIOAppProps> = ({ setupData, local
       />
     );
 
-    const bots: Record<string, any> = {};
-    setupData.players.forEach((p, idx) => {
-      if (p.isBot) {
-        bots[idx.toString()] = DelayedRandomBot;
-      }
-    });
+    if (isLocal) {
+      const bots: Record<string, any> = {};
+      offlineSetupData.players.forEach((p: any, idx: number) => {
+        if (p.isBot) {
+          bots[idx.toString()] = DelayedRandomBot;
+        }
+      });
 
-    return Client({
-      game: {
-        ...PollyannaGame,
-        setup: (ctx: any) => PollyannaGame.setup(ctx, setupData)
-      } as any,
-      board: BoardWrapper as any,
-      numPlayers: setupData.players.length,
-      debug: false,
-      multiplayer: Local({ bots })
-    });
-  }, [setupData, audioSystem, onExit]);
+      return Client({
+        game: {
+          ...PollyannaGame,
+          setup: (ctx: any) => PollyannaGame.setup(ctx, offlineSetupData)
+        } as any,
+        board: BoardWrapper as any,
+        numPlayers: offlineSetupData.players.length,
+        debug: false,
+        multiplayer: Local({ bots })
+      });
+    } else {
+      const serverUrl = import.meta.env.VITE_MULTIPLAYER_SERVER || (
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:8000'
+          : window.location.origin
+      );
+
+      return Client({
+        game: PollyannaGame,
+        board: BoardWrapper as any,
+        numPlayers: 4,
+        debug: false,
+        multiplayer: SocketIO({ server: serverUrl })
+      });
+    }
+  }, [roomId, credentials, localPlayerIndex, isLocal, offlineSetupData, audioSystem, onExit]);
 
   return (
     <PollyannaClient 
+      matchID={roomId}
       playerID={localPlayerIndex.toString()} 
+      credentials={credentials || undefined}
     />
   );
 };
-

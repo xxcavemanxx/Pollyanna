@@ -1,90 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import './App.css';
 import { useAudio } from './hooks/useAudio';
 import { useGameState } from './hooks/useGameState';
-import { GameLobby } from './components/GameLobby';
-import { GameChat } from './components/GameChat';
 import { Auth } from './components/Auth';
 import { BoardgameIOApp } from './components/BoardgameIOApp';
 import { Leaderboard } from './components/Leaderboard';
 import { DEFAULT_RULES } from './utils/gameLogic';
 
 function App() {
-  const [view, setView] = useState<'home' | 'lobby' | 'bgio-game'>('home');
+  const [view, setView] = useState<'home' | 'bgio-game'>('home');
   const [roomCodeInput, setRoomCodeInput] = useState('');
-  
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<string | null>(null);
+  const [localPlayerIndex, setLocalPlayerIndex] = useState<number>(0);
+  const [isLocal, setIsLocal] = useState<boolean>(false);
+  const [offlineSetupData, setOfflineSetupData] = useState<any>(null);
+
   // Initialize self-contained Synthesizer Audio System
   const audioSystem = useAudio();
 
-  // Initialize Game State Engine (hooked into Firebase Firestore & Local Offline simulation fallbacks)
+  // Initialize Game State Engine
   const {
-    gameState,
     localPlayer,
-    isLobbyCreator,
     loading,
     createRoom,
     joinRoom,
-    addBot,
-    removePlayer,
-    startMatch,
-    restartToLobby,
-    sendChatMessage,
     updateProfileName,
-    generateNewGuestProfile,
-    updateRoomRules
-  } = useGameState(audioSystem);
-
-  // Sync state transitions (e.g. if room starts playing)
-  useEffect(() => {
-    if (gameState) {
-      if (gameState.gameStatus === 'playing') {
-        setView('bgio-game');
-      } else if (gameState.gameStatus === 'lobby') {
-        setView('lobby');
-      }
-    }
-  }, [gameState?.gameStatus]);
+    generateNewGuestProfile
+  } = useGameState();
 
   const handleCreateRoom = async () => {
-    const code = await createRoom();
-    if (code) {
-      setView('lobby');
+    const res = await createRoom();
+    if (res) {
+      setRoomId(res.roomId);
+      setCredentials(res.credentials);
+      setLocalPlayerIndex(res.playerIndex);
+      setIsLocal(false);
+      setView('bgio-game');
     }
   };
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomCodeInput.trim()) return;
-    const ok = await joinRoom(roomCodeInput);
-    if (ok) {
-      setView('lobby');
-    } else {
-      alert("❌ Could not connect to room. Double check the code!");
+    const res = await joinRoom(roomCodeInput);
+    if (res) {
+      setRoomId(res.roomId);
+      setCredentials(res.credentials);
+      setLocalPlayerIndex(res.playerIndex);
+      setIsLocal(false);
+      setView('bgio-game');
     }
   };
 
-  // Immediate 1-Click Offline Game Setup against 3 bots!
-  const handleQuickLocalPlay = async () => {
-    const code = await createRoom(DEFAULT_RULES);
-    if (code) {
-      // Small timeout to allow state to create, then populate bots
-      setTimeout(() => {
-        addBot('medium');
-        addBot('aggressive');
-        addBot('easy');
-        setView('lobby');
-      }, 500);
-    }
+  // Immediate 1-Click Offline Game Setup against bots
+  const handleQuickLocalPlay = () => {
+    const pName = localPlayer?.name || 'Guest';
+    const pId = localPlayer?.id || 'guest';
+    setRoomId('local-room');
+    setCredentials(null);
+    setLocalPlayerIndex(0);
+    setIsLocal(true);
+    setOfflineSetupData({
+      rules: DEFAULT_RULES,
+      players: [
+        { id: pId, name: pName, color: 'green', playerIndex: 0, isHost: true, isBot: false },
+        { id: `empty_1`, name: `Empty Seat`, color: 'yellow', playerIndex: 1, isHost: false, isBot: false },
+        { id: `empty_2`, name: `Empty Seat`, color: 'red', playerIndex: 2, isHost: false, isBot: false },
+        { id: `empty_3`, name: `Empty Seat`, color: 'blue', playerIndex: 3, isHost: false, isBot: false }
+      ]
+    });
+    setView('bgio-game');
   };
-
-  // Wait! Let's examine if we need to modify useGameState.ts to export updateRules, or if we did it.
-  // Oh, we defined `onRulesUpdate: (rules: GameRules) => void` in GameLobby, but in useGameState we didn't export it.
-  // Let's check what we did. We can add `updateRules` to useGameState.ts easily!
-  // Let's view `useGameState.ts` and add `updateRules`.
-  // Wait, let's read the lines of `useGameState.ts` where we export the functions (around line 350-400).
-  // Let's do a fast search or look at the end of the file.
-  // The file has 420 lines. Let's check the end of the file.
-  // Let's read lines 380 to 415 in `useGameState.ts` to locate the export block.
 
   return (
     <div className={`app-root ${view === 'bgio-game' ? 'game-mode' : ''}`}>
@@ -172,66 +159,22 @@ function App() {
         </div>
       )}
 
-      {/* 2. LOBBY VIEW */}
-      {view === 'lobby' && gameState && !loading && (
-        <div className="lobby-container">
-          <div style={{ marginBottom: '1.5rem' }}>
-            <button 
-              onClick={() => {
-                setView('home');
-                // Clean up listeners is handled automatically
-              }} 
-              className="btn-premium"
-            >
-              ⬅️ Exit Lobby to Home
-            </button>
-          </div>
-
-          <GameLobby 
-            gameState={gameState}
-            localPlayerId={localPlayer?.id || ''}
-            isHost={isLobbyCreator}
-            onAddBot={addBot}
-            onRemovePlayer={removePlayer}
-            onStartMatch={startMatch}
-            onRulesUpdate={updateRoomRules}
-            roomId={gameState.roomId}
-          />
-
-          <div style={{ marginTop: '2rem' }}>
-            <GameChat 
-              history={gameState.history}
-              onSendMessage={sendChatMessage}
-            />
-          </div>
-        </div>
-      )}
-
-
-
       {/* 4. BOARDGAME.IO GAMEPLAY MATCH VIEW */}
-      {view === 'bgio-game' && gameState && !loading && (
+      {view === 'bgio-game' && roomId && !loading && (
         <BoardgameIOApp 
-          setupData={{
-            rules: gameState.rules,
-            players: gameState.players
-          }}
-          localPlayerIndex={
-            gameState.players.findIndex(p => p.id === localPlayer?.id) !== -1
-              ? gameState.players.findIndex(p => p.id === localPlayer?.id)
-              : 0
-          }
+          roomId={roomId}
+          credentials={credentials}
+          localPlayerIndex={localPlayerIndex}
+          isLocal={isLocal}
+          offlineSetupData={offlineSetupData}
           audioSystem={audioSystem}
           onExit={() => {
-            restartToLobby();
-            setView('lobby');
+            setView('home');
           }}
         />
       )}
     </div>
   );
 }
-
-
 
 export default App;

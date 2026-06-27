@@ -17,6 +17,8 @@ export interface BoardgameG {
   rules: GameRules;
   players: Player[];
   lastMovedPawnId?: string | null;
+  gameStatus: 'lobby' | 'playing' | 'ended';
+  currentTurn: number;
 }
 
 export const PollyannaGame = {
@@ -24,31 +26,140 @@ export const PollyannaGame = {
   
   setup: (_context: any, setupData: any): BoardgameG => {
     const rules = setupData?.rules || DEFAULT_RULES;
-    const players: Player[] = setupData?.players || [
-      { id: '0', name: 'Player 1', color: 'green', playerIndex: 0, isHost: true, isBot: false },
-      { id: '1', name: 'Player 2', color: 'yellow', playerIndex: 1, isHost: false, isBot: false },
-      { id: '2', name: 'Player 3', color: 'red', playerIndex: 2, isHost: false, isBot: false },
-      { id: '3', name: 'Player 4', color: 'blue', playerIndex: 3, isHost: false, isBot: false }
-    ];
+    
+    // Initialize G.players with 4 seats
+    const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+    const players: Player[] = [];
+    for (let i = 0; i < 4; i++) {
+      players.push({
+        id: `empty_${i}`,
+        name: `Empty Seat`,
+        color: colors[i],
+        playerIndex: i,
+        isHost: i === 0,
+        isBot: false
+      });
+    }
+
+    if (setupData?.players) {
+      setupData.players.forEach((p: Player, idx: number) => {
+        if (idx < 4) {
+          players[idx] = { ...p };
+        }
+      });
+    }
 
     return {
-      pawns: createInitialPawns(players),
+      pawns: [],
       dice: [],
       remainingMoves: [],
       hasRolled: false,
-      history: ['Game initialized using boardgame.io!'],
+      history: ['Lobby initialized using boardgame.io!'],
       rules,
       players,
-      lastMovedPawnId: null
+      lastMovedPawnId: null,
+      gameStatus: 'lobby',
+      currentTurn: 0
     };
   },
 
   moves: {
+    updatePlayerInfo: (context: any, name: string, id: string) => {
+      const G: BoardgameG = context.G;
+      const playerID = parseInt(context.playerID, 10);
+      if (!isNaN(playerID) && playerID >= 0 && playerID < 4) {
+        G.players[playerID] = {
+          id,
+          name,
+          color: G.players[playerID]?.color || ['green', 'yellow', 'red', 'blue'][playerID],
+          playerIndex: playerID,
+          isHost: playerID === 0,
+          isBot: false
+        };
+      }
+    },
+
+    addBot: (context: any, difficulty: 'easy' | 'medium' | 'aggressive') => {
+      const G: BoardgameG = context.G;
+      const nextIndex = G.players.findIndex(p => p.id.startsWith('empty_') || !p.id);
+      if (nextIndex === -1) return;
+      
+      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+      const botName = `AI ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Bot`;
+      const botId = `bot_${Math.random().toString(36).substring(2, 9)}`;
+
+      G.players[nextIndex] = {
+        id: botId,
+        name: botName,
+        color: colors[nextIndex],
+        playerIndex: nextIndex,
+        isHost: false,
+        isBot: true,
+        botDifficulty: difficulty
+      };
+      G.history.push(`🤖 ${botName} added to seat ${nextIndex + 1}.`);
+    },
+
+    removePlayer: (context: any, playerIndex: number) => {
+      const G: BoardgameG = context.G;
+      if (playerIndex < 0 || playerIndex >= 4) return;
+      const removedName = G.players[playerIndex]?.name || `Seat ${playerIndex + 1}`;
+      
+      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+      G.players[playerIndex] = {
+        id: `empty_${playerIndex}`,
+        name: `Empty Seat`,
+        color: colors[playerIndex],
+        playerIndex,
+        isHost: playerIndex === 0,
+        isBot: false
+      };
+      G.history.push(`🚪 ${removedName} was removed from the lobby.`);
+    },
+
+    updateRoomRules: (context: any, updatedRules: GameRules) => {
+      const G: BoardgameG = context.G;
+      G.rules = updatedRules;
+      G.history.push(`🔧 Rules updated.`);
+    },
+
+    startMatch: (context: any) => {
+      const G: BoardgameG = context.G;
+      G.gameStatus = 'playing';
+      
+      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+      G.players.forEach((p, idx) => {
+        if (p.id.startsWith('empty_') || !p.id) {
+          G.players[idx] = {
+            id: `bot_${Math.random().toString(36).substring(2, 9)}`,
+            name: `AI Easy Bot`,
+            color: colors[idx],
+            playerIndex: idx,
+            isHost: false,
+            isBot: true,
+            botDifficulty: 'easy'
+          };
+        }
+      });
+
+      G.pawns = createInitialPawns(G.players);
+      G.currentTurn = 0;
+      G.dice = [];
+      G.remainingMoves = [];
+      G.hasRolled = false;
+      G.history.push("⚔️ The game has started! Good luck players!");
+    },
+
+    sendChatMessage: (context: any, messageText: string, senderName: string) => {
+      const G: BoardgameG = context.G;
+      G.history.push(`💬 [${senderName}]: ${messageText}`);
+    },
+
     rollDice: (context: any) => {
       const G: BoardgameG = context.G;
       const ctx = context.ctx;
 
-      if (G.hasRolled) return;
+      if (G.hasRolled || G.gameStatus !== 'playing') return;
 
       const die1 = Math.floor(Math.random() * 6) + 1;
       const die2 = Math.floor(Math.random() * 6) + 1;
@@ -77,7 +188,7 @@ export const PollyannaGame = {
       const G: BoardgameG = context.G;
       const ctx = context.ctx;
 
-      if (!G.hasRolled) return;
+      if (!G.hasRolled || G.gameStatus !== 'playing') return;
 
       const activePlayer = G.players[ctx.playOrderPos];
       const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
@@ -146,18 +257,22 @@ export const PollyannaGame = {
       G.remainingMoves = [];
       G.hasRolled = false;
       G.lastMovedPawnId = null;
-      G.history.push(`⏰ It is now ${activePlayer.name}'s turn.`);
+      if (G.gameStatus === 'playing') {
+        G.history.push(`⏰ It is now ${activePlayer.name}'s turn.`);
+      }
     }
   },
 
   endIf: (context: any) => {
     const G: BoardgameG = context.G;
+    if (G.gameStatus !== 'playing') return;
     for (let pIdx = 0; pIdx < G.players.length; pIdx++) {
       const allHome = G.pawns
         .filter(p => p.playerIndex === G.players[pIdx].playerIndex)
         .every(p => p.isFinished);
       
       if (allHome) {
+        G.gameStatus = 'ended';
         return { winner: G.players[pIdx].id };
       }
     }
@@ -165,6 +280,7 @@ export const PollyannaGame = {
 
   ai: {
     enumerate: (G: BoardgameG, ctx: any) => {
+      if (G.gameStatus !== 'playing') return [];
       if (!G.hasRolled) {
         return [{ move: 'rollDice' }];
       }
