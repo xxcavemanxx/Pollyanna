@@ -21,6 +21,22 @@ export interface BoardgameG {
   currentTurn: number;
 }
 
+const isPlayerActionAllowed = (context: any, G: BoardgameG): boolean => {
+  const playerID = context.playerID;
+  const ctx = context.ctx;
+  const activePlayer = G.players[ctx.playOrderPos];
+  
+  if (playerID === String(activePlayer.playerIndex)) {
+    return true;
+  }
+  
+  if (activePlayer.isBot && playerID === '0') {
+    return true;
+  }
+  
+  return false;
+};
+
 export const PollyannaGame = {
   name: 'pollyanna',
   
@@ -80,8 +96,19 @@ export const PollyannaGame = {
     },
 
     addBot: (context: any, difficulty: 'easy' | 'medium' | 'aggressive') => {
+      if (context.playerID !== '0') return;
       const G: BoardgameG = context.G;
-      const nextIndex = G.players.findIndex(p => p.id.startsWith('empty_') || !p.id);
+      const isSeat0Filled = !G.players[0].id.startsWith('empty_');
+      const isSeat1Filled = !G.players[1].id.startsWith('empty_');
+      const isSeat2Filled = !G.players[2].id.startsWith('empty_');
+      const isSeat3Filled = !G.players[3].id.startsWith('empty_');
+
+      let nextIndex = -1;
+      if (isSeat0Filled && !isSeat1Filled && !isSeat2Filled && !isSeat3Filled) {
+        nextIndex = 3;
+      } else {
+        nextIndex = G.players.findIndex(p => p.id.startsWith('empty_') || !p.id);
+      }
       if (nextIndex === -1) return;
       
       const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
@@ -101,6 +128,7 @@ export const PollyannaGame = {
     },
 
     removePlayer: (context: any, playerIndex: number) => {
+      if (context.playerID !== '0') return;
       const G: BoardgameG = context.G;
       if (playerIndex < 0 || playerIndex >= 4) return;
       const removedName = G.players[playerIndex]?.name || `Seat ${playerIndex + 1}`;
@@ -118,32 +146,23 @@ export const PollyannaGame = {
     },
 
     updateRoomRules: (context: any, updatedRules: GameRules) => {
+      if (context.playerID !== '0') return;
       const G: BoardgameG = context.G;
       G.rules = updatedRules;
       G.history.push(`🔧 Rules updated.`);
     },
 
     startMatch: (context: any) => {
+      if (context.playerID !== '0') return;
       const G: BoardgameG = context.G;
       G.gameStatus = 'playing';
       
-      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
-      G.players.forEach((p, idx) => {
-        if (p.id.startsWith('empty_') || !p.id) {
-          G.players[idx] = {
-            id: `bot_${Math.random().toString(36).substring(2, 9)}`,
-            name: `AI Easy Bot`,
-            color: colors[idx],
-            playerIndex: idx,
-            isHost: false,
-            isBot: true,
-            botDifficulty: 'easy'
-          };
-        }
-      });
-
-      G.pawns = createInitialPawns(G.players);
-      G.currentTurn = 0;
+      const nonEmpties = G.players.filter(p => !p.id.startsWith('empty_'));
+      G.pawns = createInitialPawns(nonEmpties);
+      
+      const firstIdx = G.players.findIndex(p => !p.id.startsWith('empty_'));
+      G.currentTurn = firstIdx !== -1 ? firstIdx : 0;
+      
       G.dice = [];
       G.remainingMoves = [];
       G.hasRolled = false;
@@ -159,6 +178,7 @@ export const PollyannaGame = {
       const G: BoardgameG = context.G;
       const ctx = context.ctx;
 
+      if (!isPlayerActionAllowed(context, G)) return;
       if (G.hasRolled || G.gameStatus !== 'playing') return;
 
       const die1 = Math.floor(Math.random() * 6) + 1;
@@ -179,6 +199,7 @@ export const PollyannaGame = {
 
     skipTurn: (context: any) => {
       const G: BoardgameG = context.G;
+      if (!isPlayerActionAllowed(context, G)) return;
       G.hasRolled = false;
       G.remainingMoves = [];
       context.events.endTurn();
@@ -188,6 +209,7 @@ export const PollyannaGame = {
       const G: BoardgameG = context.G;
       const ctx = context.ctx;
 
+      if (!isPlayerActionAllowed(context, G)) return;
       if (!G.hasRolled || G.gameStatus !== 'playing') return;
 
       const activePlayer = G.players[ctx.playOrderPos];
@@ -246,8 +268,28 @@ export const PollyannaGame = {
 
   turn: {
     order: {
-      first: () => 0,
-      next: (context: any) => (context.ctx.playOrderPos + 1) % context.ctx.numPlayers,
+      first: (context: any) => {
+        const G: BoardgameG = context.G;
+        const firstIdx = G.players.findIndex(p => !p.id.startsWith('empty_') && p.id !== '');
+        return firstIdx !== -1 ? firstIdx : 0;
+      },
+      next: (context: any) => {
+        const G: BoardgameG = context.G;
+        let nextPos = (context.ctx.playOrderPos + 1) % context.ctx.numPlayers;
+        // Skip empty seats
+        for (let i = 0; i < 4; i++) {
+          const p = G.players[nextPos];
+          if (p && !p.id.startsWith('empty_') && p.id !== '') {
+            return nextPos;
+          }
+          nextPos = (nextPos + 1) % context.ctx.numPlayers;
+        }
+        return nextPos;
+      },
+    },
+    activePlayers: { all: 'play' },
+    stages: {
+      play: {}
     },
     onBegin: (context: any) => {
       const G: BoardgameG = context.G;
@@ -257,6 +299,7 @@ export const PollyannaGame = {
       G.remainingMoves = [];
       G.hasRolled = false;
       G.lastMovedPawnId = null;
+      G.currentTurn = ctx.playOrderPos;
       if (G.gameStatus === 'playing') {
         G.history.push(`⏰ It is now ${activePlayer.name}'s turn.`);
       }
@@ -267,12 +310,12 @@ export const PollyannaGame = {
     const G: BoardgameG = context.G;
     if (G.gameStatus !== 'playing') return;
     for (let pIdx = 0; pIdx < G.players.length; pIdx++) {
-      const allHome = G.pawns
-        .filter(p => p.playerIndex === G.players[pIdx].playerIndex)
-        .every(p => p.isFinished);
+      if (G.players[pIdx].id.startsWith('empty_')) continue;
+      
+      const playerPawns = G.pawns.filter(p => p.playerIndex === G.players[pIdx].playerIndex);
+      const allHome = playerPawns.length > 0 && playerPawns.every(p => p.isFinished);
       
       if (allHome) {
-        G.gameStatus = 'ended';
         return { winner: G.players[pIdx].id };
       }
     }

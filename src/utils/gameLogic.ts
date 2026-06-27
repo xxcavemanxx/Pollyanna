@@ -467,7 +467,7 @@ export const getLegalMoves = (
 
     // Check combined moves: If the sum of both dice is valid,
     // allow the player to move the pawn directly by that sum.
-    if (!pawn.isFinished && remainingMoves.length >= 2) {
+    if (!pawn.isFinished && (pawn.space.type !== 'base' || rules.entryRoll === 0) && remainingMoves.length >= 2) {
       const sumsToCheck: { sum: number; components: [number, number] }[] = [];
       for (let i = 0; i < remainingMoves.length; i++) {
         for (let j = i + 1; j < remainingMoves.length; j++) {

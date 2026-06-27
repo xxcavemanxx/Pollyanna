@@ -115,10 +115,9 @@ function App() {
               <form onSubmit={handleJoinRoom} className="action-row">
                 <input 
                   type="text" 
-                  placeholder="Enter 6-Letter Room Code"
+                  placeholder="Enter Room Code"
                   value={roomCodeInput}
-                  onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
-                  maxLength={6}
+                  onChange={(e) => setRoomCodeInput(e.target.value)}
                   className="glass-input" 
                 />
                 <button type="submit" className="btn-premium">

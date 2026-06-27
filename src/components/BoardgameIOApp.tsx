@@ -45,7 +45,8 @@ const BoardgameIOBoard: React.FC<{
   events: any;
   audioSystem: any;
   onExit: () => void;
-}> = ({ G, ctx, moves, playerID, audioSystem, onExit }) => {
+  matchID: string;
+}> = ({ G, ctx, moves, playerID, audioSystem, onExit, matchID }) => {
   const activePlayerIndex = ctx.playOrderPos;
   const activePlayer = G.players[activePlayerIndex];
   const isLocalTurn = playerID === ctx.currentPlayer;
@@ -116,6 +117,49 @@ const BoardgameIOBoard: React.FC<{
     }
   }, [G.hasRolled, G.remainingMoves, ctx.currentPlayer, playerID, activePlayerIndex, G.pawns, G.rules, G.lastMovedPawnId, G.gameStatus, moves]);
 
+  // Controller for AI Bots (host/local player runs moves on behalf of bots)
+  useEffect(() => {
+    if (G.gameStatus !== 'playing' || ctx.gameover) return;
+    
+    const isHost = playerID === '0';
+    if (!isHost) return;
+
+    const activePlayer = G.players[ctx.playOrderPos];
+    if (activePlayer && activePlayer.isBot && ctx.currentPlayer === String(activePlayer.playerIndex)) {
+      // 1. Bot needs to roll
+      if (!G.hasRolled) {
+        const timer = setTimeout(() => {
+          moves.rollDice();
+        }, 1500);
+        return () => clearTimeout(timer);
+      }
+      
+      // 2. Bot needs to make a move
+      if (G.hasRolled && G.remainingMoves.length > 0) {
+        const legalMoves = getLegalMoves(
+          activePlayer.playerIndex,
+          G.remainingMoves,
+          G.pawns,
+          G.rules,
+          G.lastMovedPawnId
+        );
+        
+        if (legalMoves.length > 0) {
+          const timer = setTimeout(() => {
+            const chosenMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            moves.movePawn(chosenMove.pawnId, chosenMove.stepValue, chosenMove.useTurnout);
+          }, 1500);
+          return () => clearTimeout(timer);
+        } else {
+          const timer = setTimeout(() => {
+            moves.skipTurn();
+          }, 1500);
+          return () => clearTimeout(timer);
+        }
+      }
+    }
+  }, [G.gameStatus, G.hasRolled, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId, ctx.currentPlayer, ctx.playOrderPos, ctx.gameover, playerID, moves]);
+
   const [chatInput, setChatInput] = React.useState('');
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,8 +183,10 @@ const BoardgameIOBoard: React.FC<{
       players: nonEmptyPlayers
     };
 
+    const displayRoomCode = matchID || 'LOCAL';
+
     return (
-      <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+      <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button 
             onClick={() => {
@@ -154,7 +200,7 @@ const BoardgameIOBoard: React.FC<{
           </button>
           
           <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-muted)' }}>
-            Room Lobby Code: <span style={{ color: '#10b981', fontWeight: 'bold', letterSpacing: '1px' }}>{playerID !== null ? 'CONNECTED' : 'SPECTATING'}</span>
+            Room Lobby Code: <span style={{ color: '#10b981', fontWeight: 'bold', letterSpacing: '1px' }}>{displayRoomCode}</span>
           </h2>
         </div>
 
@@ -169,7 +215,7 @@ const BoardgameIOBoard: React.FC<{
           }}
           onStartMatch={() => moves.startMatch()}
           onRulesUpdate={(rules) => moves.updateRoomRules(rules)}
-          roomId={playerID !== null ? 'CONNECTED' : 'SPECTATING'}
+          roomId={displayRoomCode}
         />
 
         <div style={{ marginTop: '2rem' }}>
