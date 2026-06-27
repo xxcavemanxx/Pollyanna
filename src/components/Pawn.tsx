@@ -41,7 +41,8 @@ export const Pawn: React.FC<PawnProps> = ({
       onClick={isSelectable ? onClick : undefined}
       style={{ 
         cursor: isSelectable ? 'pointer' : 'default',
-        transition: 'transform 0.18s cubic-bezier(0.25, 1, 0.5, 1)' 
+        transition: 'transform 0.18s cubic-bezier(0.25, 1, 0.5, 1)',
+        pointerEvents: isSelectable ? 'auto' : 'none'
       }}
       className={isPulsing ? 'active-pawn-hop' : ''}
     >

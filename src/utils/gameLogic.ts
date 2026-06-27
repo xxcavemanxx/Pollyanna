@@ -83,11 +83,11 @@ export const isBlockade = (space: GameSpace, pawns: PawnState[], rules: GameRule
   if (!rules.blockadesEnabled) return false;
   if (space.type === 'base' || space.type === 'home') return false;
 
-  const pawnsOnSpace = pawns.filter(p => 
+  const pawnsOnSpace = pawns.filter(p =>
     !p.isFinished &&
     p.space.type === space.type &&
     p.space.index === space.index &&
-    p.space.playerIndex === space.playerIndex
+    (space.type === 'broadway' || p.space.playerIndex === space.playerIndex)
   );
 
   if (pawnsOnSpace.length >= 2) {
@@ -201,6 +201,21 @@ export const calculatePath = (
       return null; // Went past Home or tried to move from Home
     }
 
+    // Check if landing on an opponent's safety space
+    const isLastStep = (i === steps - 1);
+    if (isLastStep) {
+      const opponentPawn = pawns.find(p => 
+        !p.isFinished &&
+        p.playerIndex !== pawn.playerIndex &&
+        p.space.type === nextSpace.type &&
+        p.space.index === nextSpace.index &&
+        (nextSpace.type === 'broadway' || p.space.playerIndex === nextSpace.playerIndex)
+      );
+      if (opponentPawn && isSafeSpace(nextSpace, opponentPawn.playerIndex)) {
+        return null; // Cannot stop/land on opponent's safety space when occupied
+      }
+    }
+
     // Check blockade collision (cannot pass a blockade on any intermediate or final space)
     if (isBlockade(nextSpace, pawns, rules)) {
       // In Pollyanna, you can join your own blockade by landing exactly on it, but you cannot pass it.
@@ -208,12 +223,12 @@ export const calculatePath = (
       const blockadingPawn = pawns.find(p => 
         p.space.type === nextSpace.type && 
         p.space.index === nextSpace.index &&
-        p.space.playerIndex === nextSpace.playerIndex
+        (nextSpace.type === 'broadway' || p.space.playerIndex === nextSpace.playerIndex)
       );
       const isOwnBlockade = blockadingPawn?.playerIndex === pawn.playerIndex;
       
-      const isLastStep = (i === steps - 1);
-      if (!isLastStep || !isOwnBlockade) {
+      const isLastStepForBlockade = (i === steps - 1);
+      if (!isLastStepForBlockade || !isOwnBlockade) {
         return null; // Blocked!
       }
     }
@@ -423,13 +438,16 @@ export const getLegalMoves = (
 };
 
 // Check if a space is safe
-export const isSafeSpace = (space: GameSpace): boolean => {
+export const isSafeSpace = (space: GameSpace, playerIndex?: number): boolean => {
   if (space.type === 'turnout') return true;
   if (space.type === 'homePath' || space.type === 'home') return true;
   
-  // Start spaces are safe in Pollyanna
   if (space.type === 'broadway') {
-    return Object.values(START_SPACES).includes(space.index);
+    if (playerIndex !== undefined) {
+      return START_SPACES[playerIndex] === space.index || HOME_ENTRANCES[playerIndex] === space.index;
+    }
+    // Fallback if playerIndex is not provided:
+    return Object.values(START_SPACES).includes(space.index) || Object.values(HOME_ENTRANCES).includes(space.index);
   }
   
   return false;
@@ -471,31 +489,38 @@ export const makeMove = (
   }
 
   // Handle Capture checks on landing space
-  if (!pawn.isFinished && !isSafeSpace(targetSpace)) {
+  if (!pawn.isFinished) {
     // Find any opponent pawns on the landing space
     const opponentPawnIndex = state.pawns.findIndex(p => 
       !p.isFinished &&
       p.playerIndex !== pawn.playerIndex &&
       p.space.type === targetSpace.type &&
       p.space.index === targetSpace.index &&
-      p.space.playerIndex === targetSpace.playerIndex
+      (targetSpace.type === 'broadway' || p.space.playerIndex === targetSpace.playerIndex)
     );
 
     if (opponentPawnIndex !== -1) {
       const oppPawn = state.pawns[opponentPawnIndex];
-      const oppPlayer = state.players[oppPawn.playerIndex];
       
-      // Capture! Send back to start base
-      oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
-      oppPawn.stepsTraveled = -1;
-      oppPawn.isFinished = false;
+      // Capture if opponent is not on their own safety space
+      if (!isSafeSpace(targetSpace, oppPawn.playerIndex)) {
+        const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
+        const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
+        const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
+        const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
+        
+        // Capture! Send back to start base
+        oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
+        oppPawn.stepsTraveled = -1;
+        oppPawn.isFinished = false;
 
-      state.history.push(`⚔️ ${state.players[pawn.playerIndex].name} captured ${oppPlayer.name}'s piece!`);
+        state.history.push(`⚔️ ${activePlayerName} captured ${oppPlayerName}'s piece!`);
 
-      // Award capture bonus move if rules specify a bonus (User requested customizable numerical inputs)
-      if (rules.captureBonus > 0) {
-        state.remainingMoves.push(rules.captureBonus);
-        state.history.push(`✨ ${state.players[pawn.playerIndex].name} gets a +${rules.captureBonus} space capture bonus!`);
+        // Award capture bonus move if rules specify a bonus (User requested customizable numerical inputs)
+        if (rules.captureBonus > 0) {
+          state.remainingMoves.push(rules.captureBonus);
+          state.history.push(`✨ ${activePlayerName} gets a +${rules.captureBonus} space capture bonus!`);
+        }
       }
     }
   }
@@ -521,15 +546,15 @@ export const makeMove = (
   }
 
   // Check for game winner
-  const activePlayer = state.players[state.currentTurn];
+  const activePlayerForWin = state.players.find(p => p.playerIndex === pawn.playerIndex) || state.players[state.currentTurn];
   const allHome = state.pawns
-    .filter(p => p.playerIndex === activePlayer.playerIndex)
+    .filter(p => p.playerIndex === activePlayerForWin.playerIndex)
     .every(p => p.isFinished);
 
   if (allHome) {
     state.gameStatus = 'ended';
-    state.winnerId = activePlayer.id;
-    state.history.push(`🏆🏆🏆 Player ${activePlayer.name} has WON the game! 🏆🏆🏆`);
+    state.winnerId = activePlayerForWin.id;
+    state.history.push(`🏆🏆🏆 Player ${activePlayerForWin.name} has WON the game! 🏆🏆🏆`);
   }
 
   return state;

@@ -27,10 +27,10 @@ export const Dice: React.FC<DiceProps> = ({ values, isRolling, onRollClick, disa
   const getFaceRotation = (val: number) => {
     switch (val) {
       case 1: return 'rotateX(0deg) rotateY(0deg)';
-      case 2: return 'rotateX(-90deg) rotateY(0deg)';
-      case 3: return 'rotateX(0deg) rotateY(90deg)';
-      case 4: return 'rotateX(0deg) rotateY(-90deg)';
-      case 5: return 'rotateX(90deg) rotateY(0deg)';
+      case 2: return 'rotateX(90deg) rotateY(0deg)';
+      case 3: return 'rotateX(0deg) rotateY(-90deg)';
+      case 4: return 'rotateX(0deg) rotateY(90deg)';
+      case 5: return 'rotateX(-90deg) rotateY(0deg)';
       case 6: return 'rotateX(180deg) rotateY(0deg)';
       default: return 'rotateX(0deg) rotateY(0deg)';
     }

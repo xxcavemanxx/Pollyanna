@@ -2,14 +2,14 @@
 
 ### 🐞Bugs
 
-- Pawn alignment on board
-- Turnouts
-- AI take turns too fast
-- Dice values don't match the "Remaining Moves"
-  - 2 on die is showing as 5 for remaining moves
 - Moving pawn out and landing on enemy isn't sending them home
 - Chat
 - Avatars
+- Can't send opponent's home
+- Home path rules aren't working:
+  - Not required to move pawn that's in home path into home when roll allows it
+  - Can move pawn that's already in home path less than exact amount needed to land on home
+- The pawn currently selected to move is hovering mostly off screen in the top-right corner
 
 ---
 
@@ -24,7 +24,7 @@
 
 - **Partnership Play**: lorem ipsum
 - **Triple Doubles Penalty**: If you roll doubles three times in a row, you forfeit your turn, and the next player goes.
-- **Doubles Capture**: If you roll doubles and use that roll to advance exactly two pawns from your own blockade onto an opponent's blockade, you capture both of their pieces under the following conditions:
+- **Doubles Capture**: If you roll doubles and use that roll to advance exactly two pawns from your own blockade onto an opponent's blockade, you capture both of their pawns under the following conditions:
   - **The Capture**: The opponent's blockaded pawns are defeated and sent back to their starting corner. You are immediately awarded two separate bonus movements of 10 spaces to use on your active pawns.
   - **Opponent's Blockade Limit**: This capture is only valid if the target blockade consists of exactly two pawns. If it contains three or four pawns, it remains completely impassable and cannot be captured.
   - **Your Blockade Size**: Your originating blockade may contain more than two pawns, but you must only move exactly two of them together to execute the attack.
@@ -34,7 +34,7 @@
 ### 📜Rules
 
 ##### Objective
-The goal is to navigate all four of your pawns from your starting corner, all the way around the outer track, and into your designated Home Space in the center. The first player to get all four pieces home wins.
+The goal is to navigate all four of your pawns from your starting corner, all the way around the outer track, and into your designated Home Space in the center. The first player to get all four pawns home wins.
 
 ##### Setup
 - Each player chooses a color (Red, Green, Blue, or Yellow).
@@ -49,13 +49,13 @@ The goal is to navigate all four of your pawns from your starting corner, all th
 - If you have a pawn in the **home path** and roll a number that would land that pawn on its **home space**, you must move that pawn to its **home space**.
 - In the case where you have a pawn in your **start/base area** and a pawn in your **home path** and roll a number that would land that pawn on its **home space**, you must move that pawn to its **home space** before moving a pawn from the **start/base area** to the main track.
 - **Home Path**: You cannot pass pawns in the **home path**. You must first move the pawn that is closest to home into home before you can move another pawn past that space.
-- Pawns in the home path must land in home by exact count.
-- **Double Rolls**: If you roll doubles (e.g., two 3s), you move your pieces according to the roll and get to roll again.
+- pawns in the home path must land in home by exact count.
+- **Double Rolls**: If you roll doubles (e.g., two 3s), you move your pawns according to the roll and get to roll again.
 
 ##### Key Board Spaces
 | Space Type | Rules & Mechanics |
 |---|---|
-| **Safety Spaces** | Marked with distinct colors (including your **start space** and **home entrance**). Opponents cannot land on or capture your pieces here. Each player is only safe on spaces that match their *own* color. |
+| **Safety Spaces** | Marked with distinct colors (including your **start space** and **home entrance**). Opponents cannot land on or capture your pawns here. Each player is only safe on spaces that match their *own* color. |
 | **Turnouts** | The distinctive loops on the board. If a pawn approaches the entrance space of a turnout, it can choose to take the shorter straight pathway or the longer **turnout**. |
 | **The Home Path** | A single-track, color-coded lane leading to the center. Only your pawns can enter your **home path** via your **home entrance**. |
 
@@ -65,14 +65,14 @@ The goal is to navigate all four of your pawns from your starting corner, all th
   - No player (including you) can pass a blockade space.
   - You can land on your own blockade space, but other players cannot.
   - This is a core strategy to trap opponents behind you or guard your Home Entrance.
-- Pawns in **turnouts** cannot be passed.
+- pawns in **turnouts** cannot be passed.
 
 ##### Winning the Game
 To enter the center Home Space, you must land there by exact count. The first player to successfully guide all four of their pawns into the center Home Space wins the game.
 
 ---
 
-### 🧩Track Pieces
+### 🧩Track pawns
 
 ##### Green
 

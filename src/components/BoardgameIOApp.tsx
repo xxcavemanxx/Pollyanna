@@ -94,7 +94,7 @@ const BoardgameIOBoard: React.FC<{
     if (ctx.gameover) return;
     const isLocalTurn = playerID === ctx.currentPlayer;
     if (isLocalTurn && G.hasRolled && G.remainingMoves.length > 0) {
-      const legalMoves = getLegalMoves(activePlayerIndex, G.remainingMoves, G.pawns, G.rules);
+      const legalMoves = getLegalMoves(activePlayer ? activePlayer.playerIndex : activePlayerIndex, G.remainingMoves, G.pawns, G.rules);
       if (legalMoves.length === 0) {
         const timer = setTimeout(() => {
           moves.skipTurn();

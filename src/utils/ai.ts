@@ -30,10 +30,10 @@ export const selectAIMove = (
       p.playerIndex !== playerIndex &&
       p.space.type === move.targetSpace.type &&
       p.space.index === move.targetSpace.index &&
-      p.space.playerIndex === move.targetSpace.playerIndex
+      (move.targetSpace.type === 'broadway' || p.space.playerIndex === move.targetSpace.playerIndex)
     );
     
-    if (opponentOnTarget && !isSafeSpace(move.targetSpace)) {
+    if (opponentOnTarget && !isSafeSpace(move.targetSpace, opponentOnTarget.playerIndex)) {
       score += difficulty === 'aggressive' ? 1200 : 1000;
     }
 
@@ -54,7 +54,7 @@ export const selectAIMove = (
       p.playerIndex === playerIndex &&
       p.space.type === move.targetSpace.type &&
       p.space.index === move.targetSpace.index &&
-      p.space.playerIndex === move.targetSpace.playerIndex
+      (move.targetSpace.type === 'broadway' || p.space.playerIndex === move.targetSpace.playerIndex)
     );
     
     if (friendlyOnTarget && rules.blockadesEnabled) {
@@ -62,7 +62,7 @@ export const selectAIMove = (
     }
 
     // Heuristic 5: Entering a safe space (Turnout or Safe spots)
-    if (isSafeSpace(move.targetSpace)) {
+    if (isSafeSpace(move.targetSpace, playerIndex)) {
       score += 150;
     }
 
@@ -72,7 +72,7 @@ export const selectAIMove = (
     }
 
     // Heuristic 7: Avoid danger (penalize landing in capture range of opponent unless safe)
-    if (!isSafeSpace(move.targetSpace)) {
+    if (!isSafeSpace(move.targetSpace, playerIndex)) {
       const threatCount = pawns.filter(p => 
         !p.isFinished &&
         p.playerIndex !== playerIndex &&

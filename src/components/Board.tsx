@@ -102,7 +102,7 @@ export const Board: React.FC<BoardProps> = ({
   const pawns = resolvedGameState.pawns;
 
   const legalMoves = (isLocalTurn && resolvedGameState.hasRolled) 
-    ? getLegalMoves(resolvedGameState.currentTurn, resolvedGameState.remainingMoves, pawns, rules)
+    ? getLegalMoves(currentTurnPlayer ? currentTurnPlayer.playerIndex : resolvedGameState.currentTurn, resolvedGameState.remainingMoves, pawns, rules)
     : [];
 
   const handlePawnClick = (pawnId: string) => {

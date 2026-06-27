@@ -66,7 +66,7 @@ export const TURNOUT_CONFIGS: Record<number, TurnoutConfig> = {
 // 60 spaces arranged in a diamond loop, counter-clockwise from Yellow entrance.
 // Index 0 = Yellow entrance (left-center), 15 = Blue (top), 30 = Red (right), 45 = Green (bottom).
 export const BROADWAY_COORDS: Coordinate[] = [
-  // Side 0: Yellow entrance → Blue entrance (indices 0–15, 16 spaces)
+  // Side 0: Yellow entrance → Blue entrance (indices 0–14, 15 spaces)
   { x: 15, y: 398, rotation: 0 },     // 0: Yellow entrance
   { x: 30, y: 350, rotation: -45 },    // 1
   { x: 55, y: 326, rotation: -45 },    // 2
@@ -82,9 +82,9 @@ export const BROADWAY_COORDS: Coordinate[] = [
   { x: 305, y: 81, rotation: -45 },    // 12
   { x: 330, y: 56, rotation: -45 },    // 13
   { x: 355, y: 32, rotation: -45 },    // 14
+  
+  // Side 1: Blue entrance → Red entrance (indices 15–29, 15 spaces)
   { x: 403, y: 17, rotation: 90 },     // 15: Blue entrance
-
-  // Side 1: Blue entrance → Red entrance (indices 16–29, 14 spaces)
   { x: 451, y: 32, rotation: 45 },     // 16
   { x: 476, y: 57, rotation: 45 },     // 17
   { x: 500, y: 82, rotation: 45 },     // 18
@@ -100,7 +100,7 @@ export const BROADWAY_COORDS: Coordinate[] = [
   { x: 746, y: 332, rotation: 45 },    // 28
   { x: 771, y: 357, rotation: 45 },    // 29
 
-  // Side 2: Red entrance → Green entrance (indices 30–45, 16 spaces)
+  // Side 2: Red entrance → Green entrance (indices 30–44, 15 spaces)
   { x: 784, y: 405, rotation: 0 },     // 30: Red entrance
   { x: 773, y: 456, rotation: -45 },   // 31
   { x: 748, y: 481, rotation: -45 },   // 32
@@ -116,9 +116,9 @@ export const BROADWAY_COORDS: Coordinate[] = [
   { x: 499, y: 728, rotation: -45 },   // 42
   { x: 474, y: 753, rotation: -45 },   // 43
   { x: 449, y: 778, rotation: -45 },   // 44
+  
+  // Side 3: Green entrance → Yellow entrance (indices 45–59, 15 spaces)
   { x: 400, y: 787, rotation: 90 },    // 45: Green entrance
-
-  // Side 3: Green entrance → Yellow entrance (indices 46–59, 14 spaces)
   { x: 349, y: 775, rotation: 45 },    // 46
   { x: 324, y: 750, rotation: 45 },    // 47
   { x: 300, y: 725, rotation: 45 },    // 48
