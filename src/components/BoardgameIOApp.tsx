@@ -440,12 +440,12 @@ const BoardgameIOBoard: React.FC<{
             <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn</h3>
             <span 
               className="active-player-banner"
-              style={{ color: getPlayerColorHex(activePlayer?.color) }}
+              style={{ color: getPlayerColorHex(activePlayer?.color), display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              {cleanName(activePlayer?.name)}
               {activePlayer ? (
-                activePlayer.isBot ? ' 🤖' : ` ${activePlayer.name.includes('::') ? activePlayer.name.split('::')[1] : (activePlayer.avatar || '👤')}`
-              ) : ''}
+                activePlayer.isBot ? '🤖' : `${activePlayer.name.includes('::') ? activePlayer.name.split('::')[1] : (activePlayer.avatar || '👤')}`
+              ) : ''}{' '}
+              {cleanName(activePlayer?.name)}
             </span>
           </div>
 
