@@ -50,6 +50,8 @@ const BoardgameIOBoard: React.FC<{
   const activePlayerIndex = ctx.playOrderPos;
   const activePlayer = G.players[activePlayerIndex];
   const isLocalTurn = playerID === ctx.currentPlayer;
+  const localPlayerIndex = playerID !== null ? parseInt(playerID, 10) : -1;
+
 
   const prevDiceRef = useRef<number[]>([]);
   const prevHistoryLenRef = useRef<number>(0);
@@ -169,6 +171,41 @@ const BoardgameIOBoard: React.FC<{
     }
   }, [G.gameStatus, G.hasRolled, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId, ctx.currentPlayer, ctx.playOrderPos, ctx.gameover, playerID, moves]);
 
+  // Controller for AI Bots rolling to determine who goes first
+  useEffect(() => {
+    if (G.gameStatus !== 'rollingForFirstPlayer' || !G.rollForFirst) return;
+
+    const isHost = playerID === '0';
+    if (!isHost) return;
+
+    // Find any bot that is eligible and hasn't rolled yet
+    const eligibleBots = G.rollForFirst.eligiblePlayerIndices.filter(idx => {
+      const p = G.players[idx];
+      return p && p.isBot && G.rollForFirst!.rolls[idx] === undefined;
+    });
+
+    if (eligibleBots.length > 0) {
+      const botIdx = eligibleBots[0];
+      const timer = setTimeout(() => {
+        moves.rollForFirstPlayer(botIdx);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [G.gameStatus, G.rollForFirst, G.players, playerID, moves]);
+
+  // Transition timer once winner is chosen
+  useEffect(() => {
+    if (G.gameStatus !== 'rollingForFirstPlayer' || !G.rollForFirst || G.rollForFirst.winner === undefined) return;
+
+    const isHost = playerID === '0';
+    if (!isHost) return;
+
+    const timer = setTimeout(() => {
+      moves.completeRollForFirst();
+    }, 4000); // Show results for 4 seconds before starting match
+    return () => clearTimeout(timer);
+  }, [G.gameStatus, G.rollForFirst, playerID, moves]);
+
   const [chatInput, setChatInput] = React.useState('');
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,6 +270,131 @@ const BoardgameIOBoard: React.FC<{
             history={G.history}
             onSendMessage={(msg) => moves.sendChatMessage(msg, cleanName(localProfile.name))}
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (G.gameStatus === 'rollingForFirstPlayer' && G.rollForFirst) {
+    const isEligible = G.rollForFirst.eligiblePlayerIndices.includes(localPlayerIndex);
+    const hasRolled = G.rollForFirst.rolls[localPlayerIndex] !== undefined;
+    const myRoll = G.rollForFirst.rolls[localPlayerIndex];
+    const winnerIdx = G.rollForFirst.winner;
+    const isWinnerChosen = winnerIdx !== undefined;
+
+    const handleRoll = () => {
+      moves.rollForFirstPlayer();
+    };
+
+    return (
+      <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+        <div className="glass-panel" style={{ padding: '2.5rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', background: 'rgba(20, 20, 20, 0.95)' }}>
+          <h2 style={{ textAlign: 'center', margin: '0 0 0.5rem 0', fontSize: '2rem', color: '#10b981', textShadow: '0 0 10px rgba(16,185,129,0.3)' }}>
+            Determine Turn Order
+          </h2>
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '1.05rem' }}>
+            {isWinnerChosen 
+              ? `🏆 ${cleanName(G.players[winnerIdx].name)} goes first! Starting match...`
+              : G.rollForFirst.round > 1 
+                ? `Round ${G.rollForFirst.round}: Tie-breaker roll between tied players!` 
+                : "Each player rolls the dice. The highest total goes first!"
+            }
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+            {G.players.map((p, idx) => {
+              if (p.id.startsWith('empty_')) return null;
+              
+              const isPlayerEligible = G.rollForFirst!.eligiblePlayerIndices.includes(idx);
+              const playerRoll = G.rollForFirst!.rolls[idx];
+              
+              let statusText = "";
+              let statusStyle: React.CSSProperties = { color: 'var(--text-muted)' };
+              
+              if (isWinnerChosen && idx === winnerIdx) {
+                statusText = `Winner! Rolled: ${playerRoll.dice.join(', ')} (Total: ${playerRoll.total})`;
+                statusStyle = { color: '#10b981', fontWeight: 'bold' };
+              } else if (!isPlayerEligible) {
+                statusText = "Spectating / Eliminated";
+                statusStyle = { color: '#ef4444', opacity: 0.6 };
+              } else if (playerRoll) {
+                statusText = `Rolled: ${playerRoll.dice.join(', ')} (Total: ${playerRoll.total})`;
+                statusStyle = { color: '#60a5fa', fontWeight: '500' };
+              } else {
+                statusText = "Waiting to roll...";
+                statusStyle = { color: '#f59e0b' };
+              }
+
+              return (
+                <div 
+                  key={p.id} 
+                  className="glass-panel" 
+                  style={{ 
+                    padding: '1.25rem', 
+                    borderRadius: '12px', 
+                    border: (isWinnerChosen && idx === winnerIdx) ? '2px solid #10b981' : isPlayerEligible ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(255,255,255,0.02)',
+                    background: (isWinnerChosen && idx === winnerIdx) ? 'rgba(16,185,129,0.05)' : isPlayerEligible ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.color) }} />
+                    <span style={{ fontSize: '1.25rem' }}>{p.avatar || '👤'}</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{cleanName(p.name)}</span>
+                  </div>
+                  
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    {p.isBot ? "🤖 AI Bot" : idx === localPlayerIndex ? "👤 You" : "👤 Player"}
+                  </div>
+
+                  <div style={{ ...statusStyle, fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                    {statusText}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+            {isWinnerChosen ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(16,185,129,0.1)', borderRadius: '12px', border: '1px solid rgba(16,185,129,0.3)', width: '100%', maxWidth: '500px' }}>
+                <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#10b981' }}>
+                  🎉 {cleanName(G.players[winnerIdx].name)} won the roll-off!
+                </p>
+                <p style={{ margin: '0.5rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                  Rolling results: {G.players.filter(p => !p.id.startsWith('empty_')).map(p => `${cleanName(p.name)} (${G.rollForFirst!.rolls[p.playerIndex]?.total || 0})`).join(', ')}
+                </p>
+              </div>
+            ) : isEligible ? (
+              <Dice 
+                values={myRoll ? myRoll.dice : []} 
+                isRolling={myRoll !== undefined} 
+                onRollClick={!hasRolled ? handleRoll : undefined} 
+                disabled={hasRolled}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', maxWidth: '400px' }}>
+                <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: '500' }}>
+                  Waiting for other players to roll...
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+            <h3 className="sub-section-title" style={{ marginBottom: '0.75rem' }}>💬 Log Feed</h3>
+            <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
+              {G.history.slice(-8).map((msg, index) => (
+                <div key={index} style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  {cleanMsg(msg)}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

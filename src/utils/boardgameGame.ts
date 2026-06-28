@@ -17,8 +17,14 @@ export interface BoardgameG {
   rules: GameRules;
   players: Player[];
   lastMovedPawnId?: string | null;
-  gameStatus: 'lobby' | 'playing' | 'ended';
+  gameStatus: 'lobby' | 'rollingForFirstPlayer' | 'playing' | 'ended';
   currentTurn: number;
+  rollForFirst?: {
+    eligiblePlayerIndices: number[];
+    rolls: Record<number, { dice: number[]; total: number }>;
+    round: number;
+    winner?: number;
+  };
 }
 
 const isPlayerActionAllowed = (context: any, G: BoardgameG): boolean => {
@@ -177,14 +183,89 @@ export const PollyannaGame = {
     startMatch: (context: any) => {
       if (context.playerID !== '0') return;
       const G: BoardgameG = context.G;
-      G.gameStatus = 'playing';
       
       const nonEmpties = G.players.filter(p => !p.id.startsWith('empty_'));
+      if (nonEmpties.length === 0) return;
+
+      G.gameStatus = 'rollingForFirstPlayer';
+      G.rollForFirst = {
+        eligiblePlayerIndices: nonEmpties.map(p => p.playerIndex),
+        rolls: {},
+        round: 1
+      };
+      
+      G.pawns = [];
+      G.dice = [];
+      G.remainingMoves = [];
+      G.hasRolled = false;
+      G.history.push("⚔️ Match starting! Let's roll to see who goes first!");
+    },
+
+    rollForFirstPlayer: (context: any, targetPlayerIndex?: number) => {
+      const G: BoardgameG = context.G;
+      const callerIDStr = context.playerID;
+      const callerIndex = parseInt(callerIDStr, 10);
+      
+      let rollPlayerIndex = callerIndex;
+      if (targetPlayerIndex !== undefined && callerIDStr === '0') {
+        rollPlayerIndex = targetPlayerIndex;
+      }
+
+      if (G.gameStatus !== 'rollingForFirstPlayer' || !G.rollForFirst) return;
+      if (!G.rollForFirst.eligiblePlayerIndices.includes(rollPlayerIndex)) return;
+      if (G.rollForFirst.rolls[rollPlayerIndex] !== undefined) return;
+
+      const die1 = Math.floor(Math.random() * 6) + 1;
+      const die2 = Math.floor(Math.random() * 6) + 1;
+      const total = die1 + die2;
+
+      G.rollForFirst.rolls[rollPlayerIndex] = { dice: [die1, die2], total };
+      const player = G.players[rollPlayerIndex];
+      G.history.push(`🎲 ${player.name} rolled [${die1}, ${die2}] (Total: ${total}) for first turn.`);
+
+      const allRolled = G.rollForFirst.eligiblePlayerIndices.every(
+        idx => G.rollForFirst!.rolls[idx] !== undefined
+      );
+
+      if (allRolled) {
+        let maxVal = -1;
+        G.rollForFirst.eligiblePlayerIndices.forEach(idx => {
+          const tot = G.rollForFirst!.rolls[idx].total;
+          if (tot > maxVal) maxVal = tot;
+        });
+
+        const winners = G.rollForFirst.eligiblePlayerIndices.filter(
+          idx => G.rollForFirst!.rolls[idx].total === maxVal
+        );
+
+        if (winners.length === 1) {
+          const winnerIdx = winners[0];
+          const winner = G.players[winnerIdx];
+          G.history.push(`🏆 ${winner.name} goes first with a total roll of ${maxVal}!`);
+          G.rollForFirst.winner = winnerIdx;
+        } else {
+          const winnerNames = winners.map(idx => G.players[idx].name).join(', ');
+          G.history.push(`🤝 Tie between ${winnerNames} (Total: ${maxVal})! Rolling again...`);
+          G.rollForFirst = {
+            eligiblePlayerIndices: winners,
+            rolls: {},
+            round: G.rollForFirst.round + 1
+          };
+        }
+      }
+    },
+
+    completeRollForFirst: (context: any) => {
+      const G: BoardgameG = context.G;
+      if (context.playerID !== '0') return;
+      if (G.gameStatus !== 'rollingForFirstPlayer' || !G.rollForFirst || G.rollForFirst.winner === undefined) return;
+
+      const winnerIdx = G.rollForFirst.winner;
+      const nonEmpties = G.players.filter(p => !p.id.startsWith('empty_'));
       G.pawns = createInitialPawns(nonEmpties);
-      
-      const firstIdx = G.players.findIndex(p => !p.id.startsWith('empty_'));
-      G.currentTurn = firstIdx !== -1 ? firstIdx : 0;
-      
+      G.currentTurn = winnerIdx;
+      G.gameStatus = 'playing';
+      G.rollForFirst = undefined;
       G.dice = [];
       G.remainingMoves = [];
       G.hasRolled = false;
@@ -292,8 +373,7 @@ export const PollyannaGame = {
     order: {
       first: (context: any) => {
         const G: BoardgameG = context.G;
-        const firstIdx = G.players.findIndex(p => !p.id.startsWith('empty_') && p.id !== '');
-        return firstIdx !== -1 ? firstIdx : 0;
+        return G.currentTurn !== undefined ? G.currentTurn : 0;
       },
       next: (context: any) => {
         const G: BoardgameG = context.G;
