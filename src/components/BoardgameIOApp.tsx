@@ -526,7 +526,7 @@ const BoardgameIOBoard: React.FC<{
         </div>
 
         {/* Game History / Chat Feed */}
-        <div className="glass-panel chat-container-card" style={{ display: 'flex', flexDirection: 'column', height: '320px' }}>
+        <div className="glass-panel chat-container-card">
           <h3 className="sub-section-title" style={{ marginBottom: '0.5rem' }}>💬 Game Feed</h3>
           
           <div className="chat-history-scroll" style={{ flexGrow: 1, overflowY: 'auto', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

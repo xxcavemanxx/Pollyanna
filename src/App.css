@@ -690,3 +690,59 @@
 .rank-caps {
   color: var(--text-muted);
 }
+
+.chat-container-card {
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+  padding: 1.25rem;
+}
+
+/* Tablet Layout Optimizations */
+@media (max-width: 1200px) and (min-width: 993px) {
+  .game-screen-layout {
+    grid-template-columns: 1.2fr 1fr;
+    gap: 1.5rem;
+  }
+  .board-wrapper {
+    max-width: min(72vh, 100%);
+  }
+  .dashboard-column {
+    gap: 1rem;
+  }
+  .chat-container-card {
+    height: 220px;
+  }
+}
+
+@media (max-width: 992px) {
+  .game-screen-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .board-wrapper {
+    max-width: min(48vh, 85vw);
+    margin: 0 auto;
+  }
+
+  @media (min-width: 650px) {
+    .dashboard-column {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: stretch;
+      gap: 1.25rem;
+    }
+    
+    .dashboard-column > .glass-panel {
+      flex: 1 1 280px;
+      margin: 0;
+    }
+
+    .chat-container-card {
+      height: auto;
+      min-height: 250px;
+    }
+  }
+}
