@@ -54,15 +54,24 @@ const BoardgameIOBoard: React.FC<{
   const prevDiceRef = useRef<number[]>([]);
   const prevHistoryLenRef = useRef<number>(0);
 
-  // Load player details from localStorage and register with G.players
+  const profileSyncedRef = useRef<string | null>(null);
+  const cleanName = (name: string | undefined) => name ? name.split('::')[0] : '';
+  const cleanMsg = (msg: string | undefined) => msg ? msg.replace(/::[^\s:]+/g, '') : '';
+
+  // Load player details from sessionStorage/localStorage and register with G.players
   useEffect(() => {
-    const saved = localStorage.getItem('pollyanna_player_profile');
-    if (saved && playerID !== null) {
+    const saved = sessionStorage.getItem('pollyanna_player_profile') || localStorage.getItem('pollyanna_player_profile');
+    if (saved && playerID !== null && playerID !== undefined) {
       try {
         const profile = JSON.parse(saved);
-        const mySeat = G.players[parseInt(playerID, 10)];
-        if (!mySeat || mySeat.id !== profile.id || mySeat.name !== profile.name) {
-          moves.updatePlayerInfo(profile.name, profile.id);
+        const syncKey = `${profile.id}-${profile.name}-${profile.avatar || ''}`;
+        
+        if (profileSyncedRef.current !== syncKey) {
+          const mySeat = G.players[parseInt(playerID, 10)];
+          if (!mySeat || mySeat.id !== profile.id || mySeat.name !== profile.name || mySeat.avatar !== profile.avatar) {
+            moves.updatePlayerInfo(profile.name + '::' + (profile.avatar || '👤'), profile.id, profile.avatar);
+            profileSyncedRef.current = syncKey;
+          }
         }
       } catch (e) {
         console.error(e);
@@ -165,7 +174,7 @@ const BoardgameIOBoard: React.FC<{
     e.preventDefault();
     if (!chatInput.trim() || !playerID) return;
     const localPlayerProfile = G.players[parseInt(playerID, 10)];
-    const senderName = localPlayerProfile ? localPlayerProfile.name : `Player ${playerID}`;
+    const senderName = localPlayerProfile ? cleanName(localPlayerProfile.name) : `Player ${playerID}`;
     moves.sendChatMessage(chatInput, senderName);
     setChatInput('');
   };
@@ -173,7 +182,7 @@ const BoardgameIOBoard: React.FC<{
   // If in Lobby mode: render Lobby UI hooked up to boardgame.io moves!
   if (G.gameStatus === 'lobby') {
     const isHost = playerID === '0';
-    const profileSaved = localStorage.getItem('pollyanna_player_profile');
+    const profileSaved = sessionStorage.getItem('pollyanna_player_profile') || localStorage.getItem('pollyanna_player_profile');
     const localProfile = profileSaved ? JSON.parse(profileSaved) : { id: 'guest', name: 'Guest' };
     
     // Filter empty seats for Lobby UI compatibility
@@ -222,7 +231,7 @@ const BoardgameIOBoard: React.FC<{
         <div style={{ marginTop: '2rem' }}>
           <GameChat 
             history={G.history}
-            onSendMessage={(msg) => moves.sendChatMessage(msg, localProfile.name)}
+            onSendMessage={(msg) => moves.sendChatMessage(msg, cleanName(localProfile.name))}
           />
         </div>
       </div>
@@ -244,7 +253,7 @@ const BoardgameIOBoard: React.FC<{
           <div className="glass-panel" style={{ textAlign: 'center', padding: '3rem', borderRadius: '16px', background: 'rgba(20, 20, 20, 0.95)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <h1 style={{ fontSize: '3rem', color: '#10b981', marginBottom: '1rem', textShadow: '0 0 10px rgba(16,185,129,0.3)' }}>🏆 Victory! 🏆</h1>
             <p style={{ fontSize: '1.2rem', marginBottom: '2rem', color: 'var(--text-bright)' }}>
-              {G.players.find(p => p.id === ctx.gameover.winner)?.name} has won the match!
+              {cleanName(G.players.find(p => p.id === ctx.gameover.winner)?.name)} has won the match!
             </p>
             <button 
               onClick={() => onExit()} 
@@ -271,8 +280,10 @@ const BoardgameIOBoard: React.FC<{
               className="active-player-banner"
               style={{ color: getPlayerColorHex(activePlayer?.color) }}
             >
-              {activePlayer?.name}
-              {activePlayer?.isBot ? ' 🤖' : ' 👤'}
+              {cleanName(activePlayer?.name)}
+              {activePlayer ? (
+                activePlayer.isBot ? ' 🤖' : ` ${activePlayer.name.includes('::') ? activePlayer.name.split('::')[1] : (activePlayer.avatar || '👤')}`
+              ) : ''}
             </span>
           </div>
 
@@ -328,8 +339,11 @@ const BoardgameIOBoard: React.FC<{
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                      <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.color) }} />
+                     <span style={{ fontSize: '1.2rem' }}>
+                       {p.name.includes('::') ? p.name.split('::')[1] : (p.avatar || (p.isBot ? '🤖' : '👤'))}
+                     </span>
                     <span style={{ fontSize: '0.9rem', fontWeight: activePlayerIndex === p.playerIndex ? 'bold' : 'normal' }}>
-                      {p.name} {activePlayerIndex === p.playerIndex ? ' ⏰' : ''}
+                      {cleanName(p.name)} {activePlayerIndex === p.playerIndex ? ' ⏰' : ''}
                     </span>
                   </div>
                   <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#10b981' }}>
@@ -358,7 +372,7 @@ const BoardgameIOBoard: React.FC<{
                   borderLeft: msg.startsWith('💬') ? '2px solid #3b82f6' : '2px solid rgba(255,255,255,0.08)'
                 }}
               >
-                {msg}
+                {cleanMsg(msg)}
               </div>
             ))}
           </div>

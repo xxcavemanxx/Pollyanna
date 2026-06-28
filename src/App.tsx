@@ -12,7 +12,7 @@ function App() {
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [roomId, setRoomId] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<string | null>(null);
-  const [localPlayerIndex, setLocalPlayerIndex] = useState<number>(0);
+  const [localPlayerIndex, setLocalPlayerIndex] = useState<number | null>(null);
   const [isLocal, setIsLocal] = useState<boolean>(false);
   const [offlineSetupData, setOfflineSetupData] = useState<any>(null);
 
@@ -57,6 +57,7 @@ function App() {
   const handleQuickLocalPlay = () => {
     const pName = localPlayer?.name || 'Guest';
     const pId = localPlayer?.id || 'guest';
+    const pAvatar = localPlayer?.avatar || '👤';
     setRoomId('local-room');
     setCredentials(null);
     setLocalPlayerIndex(0);
@@ -64,10 +65,10 @@ function App() {
     setOfflineSetupData({
       rules: DEFAULT_RULES,
       players: [
-        { id: pId, name: pName, color: 'green', playerIndex: 0, isHost: true, isBot: false },
-        { id: `empty_1`, name: `Empty Seat`, color: 'yellow', playerIndex: 1, isHost: false, isBot: false },
-        { id: `empty_2`, name: `Empty Seat`, color: 'red', playerIndex: 2, isHost: false, isBot: false },
-        { id: `empty_3`, name: `Empty Seat`, color: 'blue', playerIndex: 3, isHost: false, isBot: false }
+        { id: pId, name: pName, avatar: pAvatar, color: 'green', playerIndex: 0, isHost: true, isBot: false },
+        { id: `empty_1`, name: `Empty Seat`, avatar: '👤', color: 'yellow', playerIndex: 1, isHost: false, isBot: false },
+        { id: `empty_2`, name: `Empty Seat`, avatar: '👤', color: 'red', playerIndex: 2, isHost: false, isBot: false },
+        { id: `empty_3`, name: `Empty Seat`, avatar: '👤', color: 'blue', playerIndex: 3, isHost: false, isBot: false }
       ]
     });
     setView('bgio-game');
@@ -153,7 +154,7 @@ function App() {
       )}
 
       {/* 4. BOARDGAME.IO GAMEPLAY MATCH VIEW */}
-      {view === 'bgio-game' && roomId && !loading && (
+      {view === 'bgio-game' && roomId && localPlayerIndex !== null && !loading && (
         <BoardgameIOApp 
           roomId={roomId}
           credentials={credentials}
@@ -163,6 +164,7 @@ function App() {
           audioSystem={audioSystem}
           onExit={() => {
             setView('home');
+            setLocalPlayerIndex(null);
           }}
         />
       )}

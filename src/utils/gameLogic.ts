@@ -8,6 +8,7 @@ import {
 export interface Player {
   id: string;
   name: string;
+  avatar?: string;
   color: 'green' | 'yellow' | 'red' | 'blue';
   playerIndex: number;
   isHost: boolean;

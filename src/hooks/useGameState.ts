@@ -23,10 +23,20 @@ export const useGameState = () => {
 
   // Load or generate local player profile (guest)
   useEffect(() => {
+    const sessionSaved = sessionStorage.getItem(LOCAL_STORAGE_PLAYER_KEY);
+    if (sessionSaved) {
+      try {
+        setLocalPlayer(JSON.parse(sessionSaved));
+        return;
+      } catch (e) {}
+    }
+
     const saved = localStorage.getItem(LOCAL_STORAGE_PLAYER_KEY);
     if (saved) {
       try {
-        setLocalPlayer(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setLocalPlayer(parsed);
+        sessionStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, saved);
       } catch (e) {
         generateNewGuestProfile();
       }
@@ -41,6 +51,7 @@ export const useGameState = () => {
     const randomName = names[Math.floor(Math.random() * names.length)] + ' ' + Math.floor(Math.random() * 900 + 100);
     const profile = { id: randomId, name: randomName, avatar: '👤' };
     localStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(profile));
+    sessionStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(profile));
     setLocalPlayer(profile);
   };
 
@@ -48,6 +59,7 @@ export const useGameState = () => {
     if (!localPlayer) return;
     const updated = { ...localPlayer, name: newName };
     localStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(updated));
+    sessionStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(updated));
     setLocalPlayer(updated);
   };
 
@@ -55,15 +67,29 @@ export const useGameState = () => {
     if (!localPlayer) return;
     const updated = { ...localPlayer, avatar: newAvatar };
     localStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(updated));
+    sessionStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(updated));
     setLocalPlayer(updated);
   };
 
   // Create game room
+  const generateRoomCode = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
   const createRoom = async () => {
     if (!localPlayer) return null;
     setLoading(true);
     try {
-      const matchRes = await lobbyClient.createMatch('pollyanna', { numPlayers: 4 });
+      const customMatchID = generateRoomCode();
+      const matchRes = await lobbyClient.createMatch('pollyanna', { 
+        numPlayers: 4,
+        matchID: customMatchID
+      });
       const joinRes = await lobbyClient.joinMatch('pollyanna', matchRes.matchID, {
         playerID: '0',
         playerName: localPlayer.name

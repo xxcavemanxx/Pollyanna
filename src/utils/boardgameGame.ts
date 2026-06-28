@@ -50,6 +50,7 @@ export const PollyannaGame = {
       players.push({
         id: `empty_${i}`,
         name: `Empty Seat`,
+        avatar: '👤',
         color: colors[i],
         playerIndex: i,
         isHost: i === 0,
@@ -98,13 +99,14 @@ export const PollyannaGame = {
       G.history.push(`🎨 Color updated: Seat ${playerIndex + 1} is now ${newColor} (swapped with Seat ${swapIndex + 1})`);
     },
 
-    updatePlayerInfo: (context: any, name: string, id: string) => {
+    updatePlayerInfo: (context: any, name: string, id: string, avatar?: string) => {
       const G: BoardgameG = context.G;
       const playerID = parseInt(context.playerID, 10);
       if (!isNaN(playerID) && playerID >= 0 && playerID < 4) {
         G.players[playerID] = {
           id,
           name,
+          avatar: avatar || '👤',
           color: G.players[playerID]?.color || (['green', 'yellow', 'red', 'blue'][playerID] as 'green' | 'yellow' | 'red' | 'blue'),
           playerIndex: playerID,
           isHost: playerID === 0,
@@ -136,6 +138,7 @@ export const PollyannaGame = {
       G.players[nextIndex] = {
         id: botId,
         name: botName,
+        avatar: '🤖',
         color: colors[nextIndex],
         playerIndex: nextIndex,
         isHost: false,
@@ -155,6 +158,7 @@ export const PollyannaGame = {
       G.players[playerIndex] = {
         id: `empty_${playerIndex}`,
         name: `Empty Seat`,
+        avatar: '👤',
         color: colors[playerIndex],
         playerIndex,
         isHost: playerIndex === 0,

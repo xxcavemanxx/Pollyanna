@@ -52,6 +52,16 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
     }
   };
 
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCode = () => {
+    if (!roomId || roomId === 'LOCAL') return;
+    navigator.clipboard.writeText(roomId).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div className="lobby-container">
       <div className="lobby-grid">
@@ -60,7 +70,41 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
         <div className="glass-panel lobby-panel players-panel">
           <div className="panel-header">
             <h2 className="panel-title">👥 Player Room Lobby</h2>
-            <p className="panel-subtitle">Room Code: <span className="highlight-code">{roomId}</span></p>
+            <p className="panel-subtitle">
+              Room Code:{' '}
+              <span 
+                className="highlight-code" 
+                onClick={handleCopyCode}
+                style={{ 
+                  cursor: roomId !== 'LOCAL' ? 'pointer' : 'default',
+                  position: 'relative',
+                  userSelect: 'all'
+                }}
+                title={roomId !== 'LOCAL' ? 'Click to copy room code' : undefined}
+              >
+                {roomId}
+                {copied && (
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '125%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.95)',
+                    color: '#fff',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    pointerEvents: 'none',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                    fontWeight: 'normal',
+                    zIndex: 10
+                  }}>
+                    Copied!
+                  </span>
+                )}
+              </span>
+            </p>
           </div>
           
           <div className="players-list">
@@ -95,8 +139,11 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
                       style={{ backgroundColor: getPlayerColorBadge(player.color) }}
                     />
                   )}
+                  <span style={{ marginRight: '6px', fontSize: '1.25rem' }}>
+                    {player.name.includes('::') ? player.name.split('::')[1] : (player.avatar || (player.isBot ? '🤖' : '👤'))}
+                  </span>
                   <span className="player-name">
-                    {player.name} {player.id === localPlayerId ? ' (You)' : ''}
+                    {player.name.includes('::') ? player.name.split('::')[0] : player.name} {player.id === localPlayerId ? ' (You)' : ''}
                     {player.isHost ? ' 👑' : ''}
                     {player.isBot ? ' 🤖' : ''}
                   </span>
