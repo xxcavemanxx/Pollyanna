@@ -10,6 +10,7 @@ interface GameLobbyProps {
   onStartMatch: () => void;
   onRulesUpdate: (rules: GameRules) => void;
   roomId: string;
+  onChangePlayerColor?: (playerIndex: number, newColor: 'green' | 'yellow' | 'red' | 'blue') => void;
 }
 
 export const GameLobby: React.FC<GameLobbyProps> = ({
@@ -20,21 +21,22 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
   onRemovePlayer,
   onStartMatch,
   onRulesUpdate,
-  roomId
+  roomId,
+  onChangePlayerColor
 }) => {
   const [entryRoll, setEntryRoll] = useState(gameState.rules.entryRoll);
-  const [blockadesEnabled, setBlockadesEnabled] = useState(gameState.rules.blockadesEnabled);
+  const [doubleCaptureEnabled, setDoubleCaptureEnabled] = useState(gameState.rules.doubleCaptureEnabled || false);
   const [captureBonus, setCaptureBonus] = useState(gameState.rules.captureBonus);
-  const [turnoutExtraLength, setTurnoutExtraLength] = useState(gameState.rules.turnoutExtraLength);
   const [turnTimeLimit, setTurnTimeLimit] = useState(gameState.rules.turnTimeLimit);
   const handleApplyRules = (e: React.FormEvent) => {
     e.preventDefault();
     onRulesUpdate({
       entryRoll: Number(entryRoll),
-      blockadesEnabled,
+      blockadesEnabled: true,
       captureBonus: Number(captureBonus),
-      turnoutExtraLength: Number(turnoutExtraLength),
+      turnoutExtraLength: gameState.rules.turnoutExtraLength,
       turnTimeLimit: Number(turnTimeLimit),
+      doubleCaptureEnabled,
       useBgioEngine: true
     });
     alert("⚡ Rules updated successfully!");
@@ -65,10 +67,34 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
             {gameState.players.map((player) => (
               <div key={player.id} className="player-row glass-card">
                 <div className="player-info">
-                  <span 
-                    className="color-dot" 
-                    style={{ backgroundColor: getPlayerColorBadge(player.color) }}
-                  />
+                  {isHost && onChangePlayerColor ? (
+                    <select
+                      value={player.color}
+                      onChange={(e) => onChangePlayerColor(player.playerIndex, e.target.value as any)}
+                      className="glass-input color-selector"
+                      style={{
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        color: getPlayerColorBadge(player.color),
+                        border: `1px solid ${getPlayerColorBadge(player.color)}`,
+                        borderRadius: '6px',
+                        padding: '2px 8px',
+                        marginRight: '10px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        outline: 'none'
+                      }}
+                    >
+                      <option value="green" style={{ color: '#10b981', backgroundColor: '#1e293b' }}>Green</option>
+                      <option value="yellow" style={{ color: '#f59e0b', backgroundColor: '#1e293b' }}>Yellow</option>
+                      <option value="red" style={{ color: '#ef4444', backgroundColor: '#1e293b' }}>Red</option>
+                      <option value="blue" style={{ color: '#3b82f6', backgroundColor: '#1e293b' }}>Blue</option>
+                    </select>
+                  ) : (
+                    <span 
+                      className="color-dot" 
+                      style={{ backgroundColor: getPlayerColorBadge(player.color) }}
+                    />
+                  )}
                   <span className="player-name">
                     {player.name} {player.id === localPlayerId ? ' (You)' : ''}
                     {player.isHost ? ' 👑' : ''}
@@ -169,21 +195,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
               </div>
             </div>
 
-            <div className="form-group">
-              <label>↩️ Turnout Extra Path Length</label>
-              <div className="input-with-hint">
-                <input 
-                  type="number" 
-                  min="0" 
-                  max="10" 
-                  value={turnoutExtraLength} 
-                  onChange={(e) => setTurnoutExtraLength(Number(e.target.value))}
-                  disabled={!isHost}
-                  className="glass-input" 
-                />
-                <span className="input-hint">(Additional spaces inside safe turnouts. Standard: +3)</span>
-              </div>
-            </div>
+
 
             <div className="form-group">
               <label>⏰ Turn Time Limit (Seconds)</label>
@@ -205,11 +217,11 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
               <label className="checkbox-label">
                 <input 
                   type="checkbox" 
-                  checked={blockadesEnabled} 
-                  onChange={(e) => setBlockadesEnabled(e.target.checked)}
+                  checked={doubleCaptureEnabled} 
+                  onChange={(e) => setDoubleCaptureEnabled(e.target.checked)}
                   disabled={!isHost}
                 />
-                <span>Enable Double Pawn Blockades</span>
+                <span>Allow "Double Capture" on Blockades</span>
               </label>
             </div>
 

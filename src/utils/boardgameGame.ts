@@ -80,6 +80,24 @@ export const PollyannaGame = {
   },
 
   moves: {
+    changePlayerColor: (context: any, playerIndex: number, newColor: 'green' | 'yellow' | 'red' | 'blue') => {
+      if (context.playerID !== '0') return; // Only host (player '0') can change colors
+      const G: BoardgameG = context.G;
+      if (playerIndex < 0 || playerIndex >= 4) return;
+
+      const oldColor = G.players[playerIndex].color;
+      if (oldColor === newColor) return;
+
+      // Swap colors to maintain uniqueness
+      const swapIndex = G.players.findIndex(p => p.color === newColor);
+      if (swapIndex !== -1) {
+        G.players[swapIndex].color = oldColor;
+      }
+      G.players[playerIndex].color = newColor;
+
+      G.history.push(`🎨 Color updated: Seat ${playerIndex + 1} is now ${newColor} (swapped with Seat ${swapIndex + 1})`);
+    },
+
     updatePlayerInfo: (context: any, name: string, id: string) => {
       const G: BoardgameG = context.G;
       const playerID = parseInt(context.playerID, 10);
@@ -87,7 +105,7 @@ export const PollyannaGame = {
         G.players[playerID] = {
           id,
           name,
-          color: G.players[playerID]?.color || ['green', 'yellow', 'red', 'blue'][playerID],
+          color: G.players[playerID]?.color || (['green', 'yellow', 'red', 'blue'][playerID] as 'green' | 'yellow' | 'red' | 'blue'),
           playerIndex: playerID,
           isHost: playerID === 0,
           isBot: false
@@ -275,14 +293,14 @@ export const PollyannaGame = {
       },
       next: (context: any) => {
         const G: BoardgameG = context.G;
-        let nextPos = (context.ctx.playOrderPos + 1) % context.ctx.numPlayers;
+        let nextPos = (context.ctx.playOrderPos - 1 + context.ctx.numPlayers) % context.ctx.numPlayers;
         // Skip empty seats
         for (let i = 0; i < 4; i++) {
           const p = G.players[nextPos];
           if (p && !p.id.startsWith('empty_') && p.id !== '') {
             return nextPos;
           }
-          nextPos = (nextPos + 1) % context.ctx.numPlayers;
+          nextPos = (nextPos - 1 + context.ctx.numPlayers) % context.ctx.numPlayers;
         }
         return nextPos;
       },

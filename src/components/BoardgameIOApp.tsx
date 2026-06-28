@@ -26,12 +26,12 @@ class DelayedRandomBot extends RandomBot {
   }
 }
 
-function getPlayerColorHex(playerIndex: number): string {
-  switch (playerIndex) {
-    case 0: return '#10b981'; // Green
-    case 1: return '#f59e0b'; // Yellow
-    case 2: return '#ef4444'; // Red
-    case 3: return '#3b82f6'; // Blue
+function getPlayerColorHex(colorName: string | undefined): string {
+  switch (colorName) {
+    case 'green': return '#10b981';
+    case 'yellow': return '#f59e0b';
+    case 'red': return '#ef4444';
+    case 'blue': return '#3b82f6';
     default: return '#9ca3af';
   }
 }
@@ -216,6 +216,7 @@ const BoardgameIOBoard: React.FC<{
           onStartMatch={() => moves.startMatch()}
           onRulesUpdate={(rules) => moves.updateRoomRules(rules)}
           roomId={displayRoomCode}
+          onChangePlayerColor={(playerIndex, newColor) => moves.changePlayerColor(playerIndex, newColor)}
         />
 
         <div style={{ marginTop: '2rem' }}>
@@ -268,7 +269,7 @@ const BoardgameIOBoard: React.FC<{
             <h3 className="sub-section-title" style={{ marginBottom: '0.25rem' }}>Active Player Turn</h3>
             <span 
               className="active-player-banner"
-              style={{ color: getPlayerColorHex(activePlayer?.playerIndex) }}
+              style={{ color: getPlayerColorHex(activePlayer?.color) }}
             >
               {activePlayer?.name}
               {activePlayer?.isBot ? ' 🤖' : ' 👤'}
@@ -326,7 +327,7 @@ const BoardgameIOBoard: React.FC<{
               return (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.45rem 0.75rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                     <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.playerIndex) }} />
+                     <span className="color-dot" style={{ backgroundColor: getPlayerColorHex(p.color) }} />
                     <span style={{ fontSize: '0.9rem', fontWeight: activePlayerIndex === p.playerIndex ? 'bold' : 'normal' }}>
                       {p.name} {activePlayerIndex === p.playerIndex ? ' ⏰' : ''}
                     </span>

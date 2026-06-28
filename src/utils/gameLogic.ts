@@ -21,6 +21,7 @@ export interface GameRules {
   captureBonus: number;       // Custom capture bonus spaces (e.g. 10, 20)
   turnoutExtraLength: number; // Extra spaces in turnout (e.g. 3)
   turnTimeLimit: number;      // Seconds, 0 = unlimited
+  doubleCaptureEnabled: boolean; // Custom rule: allow double capture on blockade with doubles
   useBgioEngine?: boolean;
 }
 
@@ -55,6 +56,7 @@ export const DEFAULT_RULES: GameRules = {
   captureBonus: 10,
   turnoutExtraLength: 3,
   turnTimeLimit: 0,
+  doubleCaptureEnabled: false,
   useBgioEngine: true
 };
 
@@ -178,7 +180,8 @@ export const calculatePath = (
   useTurnout: boolean,
   pawns: PawnState[],
   rules: GameRules,
-  lastMovedPawnId?: string | null
+  lastMovedPawnId?: string | null,
+  remainingMoves?: number[]
 ): GameSpace[] | null => {
   if (pawn.isFinished) return null;
 
@@ -263,7 +266,22 @@ export const calculatePath = (
       const isOwnBlockade = blockadingPawn?.playerIndex === pawn.playerIndex;
       
       const isLastStepForBlockade = (i === steps - 1);
-      if (!isLastStepForBlockade || !isOwnBlockade) {
+      
+      let doubleCaptureAllowed = false;
+      if (
+        rules.doubleCaptureEnabled &&
+        isLastStepForBlockade &&
+        blockadingPawn &&
+        !isOwnBlockade &&
+        !isSafeSpace(nextSpace, blockadingPawn.playerIndex) &&
+        isBlockade(pawn.space, pawns, rules) &&
+        remainingMoves &&
+        remainingMoves.filter(m => m === steps).length >= 2
+      ) {
+        doubleCaptureAllowed = true;
+      }
+
+      if (!isLastStepForBlockade || (!isOwnBlockade && !doubleCaptureAllowed)) {
         return null; // Blocked!
       }
     }
@@ -313,7 +331,7 @@ export const validateMove = (
     // If free entry:
     if (rules.entryRoll === 0) {
       // Can enter with any die
-      const path = calculatePath(pawn, steps, useTurnout, pawns, rules);
+      const path = calculatePath(pawn, steps, useTurnout, pawns, rules, null, diceValues);
       return path ? path[path.length - 1] : null;
     }
 
@@ -322,7 +340,7 @@ export const validateMove = (
     const isSumMatch = diceValues.reduce((a, b) => a + b, 0) === rules.entryRoll;
     
     if (steps === rules.entryRoll && (isSingleDieMatch || isSumMatch)) {
-      const path = calculatePath(pawn, steps, useTurnout, pawns, rules);
+      const path = calculatePath(pawn, steps, useTurnout, pawns, rules, null, diceValues);
       return path ? path[path.length - 1] : null;
     }
     
@@ -330,7 +348,7 @@ export const validateMove = (
   }
 
   // Regular piece move
-  const path = calculatePath(pawn, steps, useTurnout, pawns, rules);
+  const path = calculatePath(pawn, steps, useTurnout, pawns, rules, null, diceValues);
   return path ? path[path.length - 1] : null;
 };
 
@@ -359,7 +377,7 @@ export const getLegalMoves = (
   playerPawns.forEach(pawn => {
     movesToCheck.forEach(stepValue => {
       // Check standard Broadway path
-      const pathStandard = calculatePath(pawn, stepValue, false, pawns, rules, lastMovedPawnId);
+      const pathStandard = calculatePath(pawn, stepValue, false, pawns, rules, lastMovedPawnId, remainingMoves);
       
       // If base, we must respect the entryRoll condition
       let isAllowed = true;
@@ -399,7 +417,7 @@ export const getLegalMoves = (
         });
 
       if (canChooseTurnout) {
-        const pathTurnout = calculatePath(pawn, stepValue, true, pawns, rules, lastMovedPawnId);
+        const pathTurnout = calculatePath(pawn, stepValue, true, pawns, rules, lastMovedPawnId, remainingMoves);
         if (pathTurnout) {
           let isTurnoutAllowed = true;
           if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
@@ -625,7 +643,7 @@ export const makeMove = (
   const rules = state.rules;
 
   // Calculate full path to apply stepsTraveled and landing
-  const path = calculatePath(pawn, stepValue, useTurnout, state.pawns, rules, state.lastMovedPawnId);
+  const path = calculatePath(pawn, stepValue, useTurnout, state.pawns, rules, state.lastMovedPawnId, state.remainingMoves);
   if (!path) return state;
 
   const targetSpace = path[path.length - 1];
@@ -647,8 +665,8 @@ export const makeMove = (
 
   // Handle Capture checks on landing space
   if (!pawn.isFinished) {
-    // Find any opponent pawns on the landing space
-    const opponentPawnIndex = state.pawns.findIndex(p => 
+    // Find all opponent pawns on the landing space
+    const opponentPawns = state.pawns.filter(p => 
       !p.isFinished &&
       p.playerIndex !== pawn.playerIndex &&
       p.space.type === targetSpace.type &&
@@ -656,24 +674,26 @@ export const makeMove = (
       (targetSpace.type === 'broadway' || p.space.playerIndex === targetSpace.playerIndex)
     );
 
-    if (opponentPawnIndex !== -1) {
-      const oppPawn = state.pawns[opponentPawnIndex];
-      
+    if (opponentPawns.length > 0) {
       // Capture if opponent is not on their own safety space
-      if (!isSafeSpace(targetSpace, oppPawn.playerIndex)) {
-        const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
+      const firstOpp = opponentPawns[0];
+      if (!isSafeSpace(targetSpace, firstOpp.playerIndex)) {
         const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
-        const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
         const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
         
-        // Capture! Send back to start base
-        oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
-        oppPawn.stepsTraveled = -1;
-        oppPawn.isFinished = false;
+        opponentPawns.forEach(oppPawn => {
+          const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
+          const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
+          
+          // Capture! Send back to start base
+          oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
+          oppPawn.stepsTraveled = -1;
+          oppPawn.isFinished = false;
 
-        state.history.push(`⚔️ ${activePlayerName} captured ${oppPlayerName}'s piece!`);
+          state.history.push(`⚔️ ${activePlayerName} captured ${oppPlayerName}'s piece!`);
+        });
 
-        // Award capture bonus move if rules specify a bonus (User requested customizable numerical inputs)
+        // Award capture bonus move if rules specify a bonus
         if (rules.captureBonus > 0) {
           state.remainingMoves.push(rules.captureBonus);
           state.history.push(`✨ ${activePlayerName} gets a +${rules.captureBonus} space capture bonus!`);
