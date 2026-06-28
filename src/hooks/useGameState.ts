@@ -51,6 +51,13 @@ export const useGameState = () => {
     setLocalPlayer(updated);
   };
 
+  const updateProfileAvatar = (newAvatar: string) => {
+    if (!localPlayer) return;
+    const updated = { ...localPlayer, avatar: newAvatar };
+    localStorage.setItem(LOCAL_STORAGE_PLAYER_KEY, JSON.stringify(updated));
+    setLocalPlayer(updated);
+  };
+
   // Create game room
   const createRoom = async () => {
     if (!localPlayer) return null;
@@ -125,6 +132,7 @@ export const useGameState = () => {
     createRoom,
     joinRoom,
     updateProfileName,
+    updateProfileAvatar,
     generateNewGuestProfile
   };
 };

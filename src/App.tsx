@@ -26,7 +26,7 @@ function App() {
     createRoom,
     joinRoom,
     updateProfileName,
-    generateNewGuestProfile
+    updateProfileAvatar
   } = useGameState();
 
   const handleCreateRoom = async () => {
@@ -143,13 +143,7 @@ function App() {
             <Auth 
               profile={localPlayer}
               onUpdateName={updateProfileName}
-              onUpdateAvatar={(av) => {
-                if (localPlayer) {
-                  const updated = { ...localPlayer, avatar: av };
-                  localStorage.setItem('pollyanna_player_profile', JSON.stringify(updated));
-                  generateNewGuestProfile(); // Reloads profile state
-                }
-              }}
+              onUpdateAvatar={updateProfileAvatar}
             />
             
             <Leaderboard />

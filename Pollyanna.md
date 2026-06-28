@@ -4,17 +4,13 @@
 
 - Chat
 - Avatars
-- Turns are going clockwise, but should be going counter-clockwise.
 
 ---
 
 ### ⬆️Updates
 
 - ⭐ Add starting roll to determine who goes first!
-- Remove turnout extra length option
 - Make it easier to select making a block vs changing mind and picking the other pawn to move
-- Allow host to select players colors.
-- When there are more than two players and two are human, default them to opposite sides.
 
 ---
 
