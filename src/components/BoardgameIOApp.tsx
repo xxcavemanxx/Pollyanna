@@ -57,8 +57,16 @@ const BoardgameIOBoard: React.FC<{
   const prevHistoryLenRef = useRef<number>(0);
 
   const profileSyncedRef = useRef<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const cleanName = (name: string | undefined) => name ? name.split('::')[0] : '';
   const cleanMsg = (msg: string | undefined) => msg ? msg.replace(/::[^\s:]+/g, '') : '';
+
+  // Auto scroll chat/game feed to bottom on new messages
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [G.history.length]);
 
   // Load player details from sessionStorage/localStorage and register with G.players
   useEffect(() => {
@@ -537,6 +545,7 @@ const BoardgameIOBoard: React.FC<{
                 {cleanMsg(msg)}
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
 
           <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '0.5rem' }}>
