@@ -9,8 +9,8 @@
 
 ### ⬆️Updates
 
-- ⭐ Add starting roll to determine who goes first!
-- Make it easier to select making a block vs changing mind and picking the other pawn to move
+- Make it easier to select making a block vs changing mind and picking the other pawn to move.
+- Make it tablet friendly.
 
 ---
 
