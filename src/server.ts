@@ -1,3 +1,4 @@
+// @ts-expect-error boardgame.io CJS server import does not have direct declaration files
 import { Server, Origins } from 'boardgame.io/dist/cjs/server.js';
 import { PollyannaGame } from './utils/boardgameGame';
 
