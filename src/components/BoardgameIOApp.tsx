@@ -78,9 +78,15 @@ const BoardgameIOBoard: React.FC<{
         
         if (profileSyncedRef.current !== syncKey) {
           const mySeat = G.players[parseInt(playerID, 10)];
-          if (!mySeat || mySeat.id !== profile.id || mySeat.name !== profile.name || mySeat.avatar !== profile.avatar) {
-            moves.updatePlayerInfo(profile.name + '::' + (profile.avatar || '👤'), profile.id, profile.avatar);
-            profileSyncedRef.current = syncKey;
+          if (mySeat) {
+            const cleanMySeatName = cleanName(mySeat.name);
+            if (mySeat.id !== profile.id || cleanMySeatName !== profile.name || mySeat.avatar !== profile.avatar) {
+              moves.updatePlayerInfo(profile.name + '::' + (profile.avatar || '👤'), profile.id, profile.avatar);
+              profileSyncedRef.current = syncKey;
+            } else {
+              // Mark as synced if the state matches the profile already
+              profileSyncedRef.current = syncKey;
+            }
           }
         }
       } catch (e) {

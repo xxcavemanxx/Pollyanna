@@ -270,6 +270,7 @@ export const PollyannaGame = {
       G.remainingMoves = [];
       G.hasRolled = false;
       G.history.push("⚔️ The game has started! Good luck players!");
+      context.events.endTurn({ next: String(winnerIdx) });
     },
 
     sendChatMessage: (context: any, messageText: string, senderName: string) => {
