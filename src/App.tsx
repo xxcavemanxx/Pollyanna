@@ -140,7 +140,7 @@ function App() {
           </div>
 
           {/* Profile & Leaderboard Columns */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="home-profile-leaderboard-col">
             <Auth 
               profile={localPlayer}
               onUpdateName={updateProfileName}

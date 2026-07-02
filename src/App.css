@@ -1,22 +1,26 @@
 /* Pollyanna UI Layout Stylesheet */
 
 .app-root {
-  min-height: 100vh;
-  padding: 1.5rem;
+  height: 100%;
+  width: 100%;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  overflow: hidden;
 }
 
 .app-root.game-mode {
   justify-content: center;
+  padding: 0.5rem;
 }
 
 .main-title-header {
-  margin-top: 1rem;
-  margin-bottom: 2rem;
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .main-title-header h1 {
@@ -45,20 +49,34 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2rem;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 700px) {
   .home-container {
     grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 }
 
 .home-actions-card {
-  padding: 2rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.home-profile-leaderboard-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .home-section-title {
@@ -91,29 +109,62 @@
   font-weight: 600;
 }
 
+.lobby-screen-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0.5rem;
+  overflow: hidden;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+.lobby-chat-wrapper {
+  height: 250px;
+  flex-shrink: 0;
+}
+
+.lobby-chat-wrapper .chat-container {
+  height: 100%;
+}
+
 /* LOBBY VIEW */
 .lobby-container {
   width: 100%;
   max-width: 1100px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .lobby-grid {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
   gap: 2rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-@media (max-width: 850px) {
+@media (max-width: 700px) {
   .lobby-grid {
     grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 }
 
 .lobby-panel {
-  padding: 2rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -382,19 +433,25 @@
   max-width: 1600px;
   display: grid;
   grid-template-columns: 1.65fr 1fr;
-  gap: 3rem;
+  gap: 2rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 @media (min-width: 1600px) {
   .game-screen-layout {
     max-width: 92vw;
-    gap: 4rem;
+    gap: 3rem;
   }
 }
 
 @media (max-width: 992px) {
   .game-screen-layout {
     grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 }
 
@@ -402,21 +459,30 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .board-wrapper {
   width: 100%;
-  max-width: min(85vh, 100%);
+  max-width: min(80vh, 100%);
+  max-height: min(80vh, 100%);
   aspect-ratio: 1 / 1;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.bgio-client {
+.bgio-client,
+.app-root.game-mode > div {
   width: 100%;
+  height: 100%;
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .game-board-svg {
@@ -426,7 +492,11 @@
 .dashboard-column {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .active-turn-card {
@@ -436,7 +506,7 @@
   gap: 1.2rem;
   text-align: center;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .active-player-banner {
@@ -699,26 +769,28 @@
 }
 
 /* Tablet Layout Optimizations */
-@media (max-width: 1200px) and (min-width: 993px) {
+@media (max-width: 1200px) and (min-width: 701px) {
   .game-screen-layout {
     grid-template-columns: 1.2fr 1fr;
-    gap: 1.5rem;
+    gap: 1.25rem;
   }
   .board-wrapper {
-    max-width: min(72vh, 100%);
+    max-width: min(65vh, 100%);
+    max-height: min(65vh, 100%);
   }
   .dashboard-column {
-    gap: 1rem;
+    gap: 0.75rem;
   }
   .chat-container-card {
-    height: 220px;
+    height: 180px;
   }
 }
 
-@media (max-width: 992px) {
+@media (max-width: 700px) {
   .game-screen-layout {
     grid-template-columns: 1fr;
     gap: 1.5rem;
+    overflow-y: auto;
   }
   
   .board-wrapper {
@@ -744,5 +816,226 @@
       height: auto;
       min-height: 250px;
     }
+  }
+}
+
+
+/* 3-Column Lobby Layout Styles */
+.lobby-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 1.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lobby-grid .chat-container {
+  height: 100%;
+  max-height: 100%;
+}
+
+@media (max-width: 900px) {
+  .lobby-grid {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .lobby-grid {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .lobby-grid .chat-container {
+    height: 250px;
+  }
+}
+
+/* Tabbed Rules Configurator Styles */
+.rules-tabs-bar {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0.25rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.03);
+  margin-bottom: 1rem;
+}
+
+.rules-tab-btn {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rules-tab-btn.active {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-main);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.08);
+}
+
+.rules-tab-btn:hover:not(.active) {
+  background: rgba(255,255,255,0.03);
+  color: var(--text-main);
+}
+
+/* Responsive UI Element Shrinking for Smaller Screen Heights and Widths */
+@media (max-height: 820px) {
+  .app-root {
+    padding: 0.5rem;
+  }
+  .main-title-header {
+    margin-top: 0.1rem;
+    margin-bottom: 0.5rem;
+  }
+  .main-title-header h1 {
+    font-size: 2.25rem;
+  }
+  .main-title-header p {
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+  }
+  .home-container {
+    gap: 1rem;
+  }
+  .home-actions-card,
+  .lobby-panel,
+  .profile-widget,
+  .leaderboard-container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .home-section-title,
+  .panel-title {
+    font-size: 1.35rem;
+    padding-bottom: 0.5rem;
+  }
+  .chat-container {
+    height: 250px;
+    padding: 0.75rem;
+  }
+  .chat-messages {
+    gap: 0.25rem;
+  }
+  .chat-message-row {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+  }
+  .btn-premium {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  .btn-large {
+    padding: 0.75rem;
+    font-size: 0.95rem;
+  }
+  .glass-input,
+  .glass-select {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.85rem;
+  }
+  .lobby-chat-wrapper {
+    height: 180px;
+  }
+  .active-turn-card {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+  .active-player-banner {
+    font-size: 1.2rem;
+  }
+  .dashboard-column {
+    gap: 0.75rem;
+  }
+  .board-wrapper {
+    max-width: min(76vh, 100%);
+    max-height: min(76vh, 100%);
+  }
+  .dice-container {
+    padding: 0.5rem;
+    gap: 1rem;
+  }
+}
+
+@media (max-height: 680px) {
+  .main-title-header {
+    display: none; /* Hide header completely to save vertical space on extremely short screens */
+  }
+  .lobby-chat-wrapper {
+    height: 140px;
+  }
+  .board-wrapper {
+    max-width: min(72vh, 100%);
+    max-height: min(72vh, 100%);
+  }
+  .home-actions-card,
+  .lobby-panel,
+  .profile-widget,
+  .leaderboard-container {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+  .home-section-title,
+  .panel-title {
+    font-size: 1.2rem;
+  }
+  .btn-premium {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  .btn-large {
+    padding: 0.6rem;
+  }
+  .glass-input,
+  .glass-select {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  .dice-container {
+    padding: 0.25rem;
+    gap: 0.5rem;
+  }
+  .dice-scene,
+  .die-face {
+    width: 48px;
+    height: 48px;
+  }
+  .front  { transform: rotateY(0deg) translateZ(24px); }
+  .back   { transform: rotateY(180deg) translateZ(24px); }
+  .right  { transform: rotateY(90deg) translateZ(24px); }
+  .left   { transform: rotateY(-90deg) translateZ(24px); }
+  .top    { transform: rotateX(90deg) translateZ(24px); }
+  .bottom { transform: rotateX(-90deg) translateZ(24px); }
+  .dice-dot {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+@media (max-width: 600px) {
+  .main-title-header h1 {
+    font-size: 2rem;
+  }
+  .home-actions-card,
+  .lobby-panel,
+  .profile-widget,
+  .leaderboard-container {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .home-section-title,
+  .panel-title {
+    font-size: 1.3rem;
+  }
+  .btn-premium {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
   }
 }

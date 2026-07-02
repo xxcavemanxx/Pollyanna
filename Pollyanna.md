@@ -11,6 +11,23 @@
 
 - Make it easier to select making a block vs changing mind and picking the other pawn to move.
 - Make it tablet friendly.
+- ⭐Add point system:
+  - Captures
+  - Getting a pawn home
+  - First to get pawn home
+  - Capturing pawn on your own safe space
+  - First to get pawn out of start/base area
+  - Pawns in start area when the game ends: -points
+  - Finishing in first place
+  - Finishing in second place
+  - Finishing in third place
+  - Finishing in last place
+  - Capture combos
+    - Single roll
+    - Single turn (inc. doubles)
+  - Revenge capture (capturing pawn that just captured your pawn)
+  - Duration of blockades: -points?
+  - Landing directly on home from outside the home path
 
 ---
 

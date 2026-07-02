@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { GameState, GameRules } from '../utils/gameLogic';
+import { GameChat } from './GameChat';
 
 interface GameLobbyProps {
   gameState: GameState;
@@ -11,6 +12,8 @@ interface GameLobbyProps {
   onRulesUpdate: (rules: GameRules) => void;
   roomId: string;
   onChangePlayerColor?: (playerIndex: number, newColor: 'green' | 'yellow' | 'red' | 'blue') => void;
+  chatHistory: string[];
+  onSendChatMessage: (message: string) => void;
 }
 
 export const GameLobby: React.FC<GameLobbyProps> = ({
@@ -22,12 +25,17 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
   onStartMatch,
   onRulesUpdate,
   roomId,
-  onChangePlayerColor
+  onChangePlayerColor,
+  chatHistory,
+  onSendChatMessage
 }) => {
   const [entryRoll, setEntryRoll] = useState(gameState.rules.entryRoll);
   const [doubleCaptureEnabled, setDoubleCaptureEnabled] = useState(gameState.rules.doubleCaptureEnabled || false);
   const [captureBonus, setCaptureBonus] = useState(gameState.rules.captureBonus);
   const [turnTimeLimit, setTurnTimeLimit] = useState(gameState.rules.turnTimeLimit);
+  
+  const [activeTab, setActiveTab] = useState<'rules' | 'timer'>('rules');
+
   const handleApplyRules = (e: React.FormEvent) => {
     e.preventDefault();
     onRulesUpdate({
@@ -206,73 +214,93 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
         <div className="glass-panel lobby-panel rules-panel">
           <div className="panel-header">
             <h2 className="panel-title">⚙️ Game Rules Customizer</h2>
-            <p className="panel-subtitle">Configure specific custom numeric limits</p>
+            <p className="panel-subtitle">Configure specific custom rules and timer settings</p>
+          </div>
+
+          {/* Modern Tab Bar */}
+          <div className="rules-tabs-bar">
+            <button 
+              type="button"
+              className={`rules-tab-btn ${activeTab === 'rules' ? 'active' : ''}`}
+              onClick={() => setActiveTab('rules')}
+            >
+              🎮 Game Setup
+            </button>
+            <button 
+              type="button"
+              className={`rules-tab-btn ${activeTab === 'timer' ? 'active' : ''}`}
+              onClick={() => setActiveTab('timer')}
+            >
+              ⏰ Match Timer
+            </button>
           </div>
 
           <form onSubmit={handleApplyRules} className="rules-form">
-            <div className="form-group">
-              <label>🎲 Pawn Entry Roll Value</label>
-              <div className="input-with-hint">
-                <input 
-                  type="number" 
-                  min="0" 
-                  max="12" 
-                  value={entryRoll} 
-                  onChange={(e) => setEntryRoll(Number(e.target.value))}
-                  disabled={!isHost}
-                  className="glass-input" 
-                />
-                <span className="input-hint">(Standard Pollyanna: 6. Parcheesi: 5. Free entry: 0)</span>
+            {activeTab === 'rules' && (
+              <>
+                <div className="form-group">
+                  <label>🎲 Pawn Entry Roll Value</label>
+                  <div className="input-with-hint">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="12" 
+                      value={entryRoll} 
+                      onChange={(e) => setEntryRoll(Number(e.target.value))}
+                      disabled={!isHost}
+                      className="glass-input" 
+                    />
+                    <span className="input-hint">(Pollyanna standard: 6. Free entry: 0)</span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>⚔️ Capture Bonus Spaces</label>
+                  <div className="input-with-hint">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="40" 
+                      value={captureBonus} 
+                      onChange={(e) => setCaptureBonus(Number(e.target.value))}
+                      disabled={!isHost}
+                      className="glass-input" 
+                    />
+                    <span className="input-hint">(Steps awarded for capturing opponent pawns)</span>
+                  </div>
+                </div>
+
+                <div className="form-group row-group">
+                  <label className="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      checked={doubleCaptureEnabled} 
+                      onChange={(e) => setDoubleCaptureEnabled(e.target.checked)}
+                      disabled={!isHost}
+                    />
+                    <span>Allow "Double Capture" on Blockades</span>
+                  </label>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'timer' && (
+              <div className="form-group">
+                <label>⏰ Turn Time Limit (Seconds)</label>
+                <div className="input-with-hint">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max="300" 
+                    value={turnTimeLimit} 
+                    onChange={(e) => setTurnTimeLimit(Number(e.target.value))}
+                    disabled={!isHost}
+                    className="glass-input" 
+                  />
+                  <span className="input-hint">(0 for unlimited, or select custom limit)</span>
+                </div>
               </div>
-            </div>
-
-            <div className="form-group">
-              <label>⚔️ Capture Bonus Spaces</label>
-              <div className="input-with-hint">
-                <input 
-                  type="number" 
-                  min="0" 
-                  max="40" 
-                  value={captureBonus} 
-                  onChange={(e) => setCaptureBonus(Number(e.target.value))}
-                  disabled={!isHost}
-                  className="glass-input" 
-                />
-                <span className="input-hint">(Extra steps awarded on capturing an opponent pawn)</span>
-              </div>
-            </div>
-
-
-
-            <div className="form-group">
-              <label>⏰ Turn Time Limit (Seconds)</label>
-              <div className="input-with-hint">
-                <input 
-                  type="number" 
-                  min="0" 
-                  max="300" 
-                  value={turnTimeLimit} 
-                  onChange={(e) => setTurnTimeLimit(Number(e.target.value))}
-                  disabled={!isHost}
-                  className="glass-input" 
-                />
-                <span className="input-hint">(0 for unlimited, or input custom limits in seconds)</span>
-              </div>
-            </div>
-
-            <div className="form-group row-group">
-              <label className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={doubleCaptureEnabled} 
-                  onChange={(e) => setDoubleCaptureEnabled(e.target.checked)}
-                  disabled={!isHost}
-                />
-                <span>Allow "Double Capture" on Blockades</span>
-              </label>
-            </div>
-
-
+            )}
 
             {isHost && (
               <button type="submit" className="btn-premium btn-apply-rules">
@@ -281,6 +309,9 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
             )}
           </form>
         </div>
+
+        {/* Third Column: Room Chat */}
+        <GameChat history={chatHistory} onSendMessage={onSendChatMessage} />
 
       </div>
     </div>

@@ -7,7 +7,6 @@ import { Board } from './Board';
 import { Dice } from './Dice';
 import { getLegalMoves } from '../utils/gameLogic';
 import { GameLobby } from './GameLobby';
-import { GameChat } from './GameChat';
 
 interface BoardgameIOAppProps {
   roomId: string;
@@ -246,8 +245,8 @@ const BoardgameIOBoard: React.FC<{
     const displayRoomCode = matchID || 'LOCAL';
 
     return (
-      <div style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
-        <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="lobby-screen-wrapper">
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <button 
             onClick={() => {
               if (window.confirm("Are you sure you want to leave the lobby?")) {
@@ -277,14 +276,9 @@ const BoardgameIOBoard: React.FC<{
           onRulesUpdate={(rules) => moves.updateRoomRules(rules)}
           roomId={displayRoomCode}
           onChangePlayerColor={(playerIndex, newColor) => moves.changePlayerColor(playerIndex, newColor)}
+          chatHistory={G.history}
+          onSendChatMessage={(msg) => moves.sendChatMessage(msg, cleanName(localProfile.name))}
         />
-
-        <div style={{ marginTop: '2rem' }}>
-          <GameChat 
-            history={G.history}
-            onSendMessage={(msg) => moves.sendChatMessage(msg, cleanName(localProfile.name))}
-          />
-        </div>
       </div>
     );
   }
