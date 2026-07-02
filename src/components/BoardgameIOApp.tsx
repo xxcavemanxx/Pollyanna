@@ -56,14 +56,17 @@ const BoardgameIOBoard: React.FC<{
   const prevHistoryLenRef = useRef<number>(0);
 
   const profileSyncedRef = useRef<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatHistoryContainerRef = useRef<HTMLDivElement | null>(null);
   const cleanName = (name: string | undefined) => name ? name.split('::')[0] : '';
   const cleanMsg = (msg: string | undefined) => msg ? msg.replace(/::[^\s:]+/g, '') : '';
 
-  // Auto scroll chat/game feed to bottom on new messages
+  // Auto scroll chat/game feed to bottom on new messages (container-level only, to avoid scrolling parent sidebar)
   useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (chatHistoryContainerRef.current) {
+      chatHistoryContainerRef.current.scrollTo({
+        top: chatHistoryContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [G.history.length]);
 
@@ -529,7 +532,11 @@ const BoardgameIOBoard: React.FC<{
         <div className="glass-panel chat-container-card">
           <h3 className="sub-section-title" style={{ marginBottom: '0.5rem' }}>💬 Game Feed</h3>
           
-          <div className="chat-history-scroll" style={{ flexGrow: 1, overflowY: 'auto', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <div 
+            ref={chatHistoryContainerRef}
+            className="chat-history-scroll" 
+            style={{ flexGrow: 1, overflowY: 'auto', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
+          >
             {G.history.map((msg, index) => (
               <div 
                 key={index} 
@@ -545,7 +552,6 @@ const BoardgameIOBoard: React.FC<{
                 {cleanMsg(msg)}
               </div>
             ))}
-            <div ref={chatEndRef} />
           </div>
 
           <form onSubmit={handleSendChat} style={{ display: 'flex', gap: '0.5rem' }}>
