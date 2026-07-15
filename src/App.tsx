@@ -66,9 +66,9 @@ function App() {
       rules: DEFAULT_RULES,
       players: [
         { id: pId, name: pName, avatar: pAvatar, color: 'green', playerIndex: 0, isHost: true, isBot: false },
-        { id: `empty_1`, name: `Empty Seat`, avatar: '👤', color: 'yellow', playerIndex: 1, isHost: false, isBot: false },
-        { id: `empty_2`, name: `Empty Seat`, avatar: '👤', color: 'red', playerIndex: 2, isHost: false, isBot: false },
-        { id: `empty_3`, name: `Empty Seat`, avatar: '👤', color: 'blue', playerIndex: 3, isHost: false, isBot: false }
+        { id: `empty_1`, name: `Empty Seat`, avatar: '👤', color: 'red', playerIndex: 1, isHost: false, isBot: false },
+        { id: `empty_2`, name: `Empty Seat`, avatar: '👤', color: 'blue', playerIndex: 2, isHost: false, isBot: false },
+        { id: `empty_3`, name: `Empty Seat`, avatar: '👤', color: 'yellow', playerIndex: 3, isHost: false, isBot: false }
       ]
     });
     setView('bgio-game');

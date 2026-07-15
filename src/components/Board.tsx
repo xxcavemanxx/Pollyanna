@@ -7,6 +7,7 @@ import {
 import { 
   getLegalMoves, 
   isBlockade,
+  colorToIndex,
   type GameState, 
   type LegalMove
 } from '../utils/gameLogic';
@@ -307,7 +308,7 @@ export const Board: React.FC<BoardProps> = ({
           let x = 0;
           let y = 0;
           if (pawn.space.type === 'home') {
-            const pos = HOME_COORDS[pawn.playerIndex];
+            const pos = HOME_COORDS[colorToIndex(pawn.color)];
             x = pos.x + (pawn.pawnIndex % 2 === 0 ? -12 : 12);
             y = pos.y + (pawn.pawnIndex < 2 ? -12 : 12);
           } else if (animatingPawn && animatingPawn.pawnId === pawn.id) {

@@ -50,7 +50,7 @@ export const PollyannaGame = {
     const rules = setupData?.rules || DEFAULT_RULES;
     
     // Initialize G.players with 4 seats
-    const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+    const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'red', 'blue', 'yellow'];
     const players: Player[] = [];
     for (let i = 0; i < 4; i++) {
       players.push({
@@ -113,7 +113,7 @@ export const PollyannaGame = {
           id,
           name,
           avatar: avatar || '👤',
-          color: G.players[playerID]?.color || (['green', 'yellow', 'red', 'blue'][playerID] as 'green' | 'yellow' | 'red' | 'blue'),
+          color: G.players[playerID]?.color || (['green', 'red', 'blue', 'yellow'][playerID] as 'green' | 'yellow' | 'red' | 'blue'),
           playerIndex: playerID,
           isHost: playerID === 0,
           isBot: false
@@ -131,13 +131,13 @@ export const PollyannaGame = {
 
       let nextIndex = -1;
       if (isSeat0Filled && !isSeat1Filled && !isSeat2Filled && !isSeat3Filled) {
-        nextIndex = 3;
+        nextIndex = 2;
       } else {
         nextIndex = G.players.findIndex(p => p.id.startsWith('empty_') || !p.id);
       }
       if (nextIndex === -1) return;
       
-      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+      const colors: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'red', 'blue', 'yellow'];
       const botName = `AI ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} Bot`;
       const botId = `bot_${Math.random().toString(36).substring(2, 9)}`;
 
@@ -378,16 +378,23 @@ export const PollyannaGame = {
       },
       next: (context: any) => {
         const G: BoardgameG = context.G;
-        let nextPos = (context.ctx.playOrderPos - 1 + context.ctx.numPlayers) % context.ctx.numPlayers;
+        const colorsOrder: ('green' | 'red' | 'blue' | 'yellow')[] = ['green', 'red', 'blue', 'yellow'];
+        const physicalOrder = colorsOrder.map(color => G.players.findIndex(p => p.color === color));
+        
+        let currentIdx = physicalOrder.indexOf(context.ctx.playOrderPos);
+        if (currentIdx === -1) currentIdx = 0;
+        
+        let nextIdx = (currentIdx + 1) % physicalOrder.length;
         // Skip empty seats
         for (let i = 0; i < 4; i++) {
+          const nextPos = physicalOrder[nextIdx];
           const p = G.players[nextPos];
           if (p && !p.id.startsWith('empty_') && p.id !== '') {
             return nextPos;
           }
-          nextPos = (nextPos - 1 + context.ctx.numPlayers) % context.ctx.numPlayers;
+          nextIdx = (nextIdx + 1) % physicalOrder.length;
         }
-        return nextPos;
+        return physicalOrder[nextIdx];
       },
     },
     activePlayers: { all: 'play' },

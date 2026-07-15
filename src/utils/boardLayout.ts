@@ -21,31 +21,31 @@ export const BASE_POSITIONS: Record<number, Coordinate[]> = {
   0: [ // Green (Bottom-Right) - John Pendleton Portrait
     { x: 704, y: 704 }, { x: 736, y: 704 }, { x: 704, y: 736 }, { x: 736, y: 736 }
   ],
-  1: [ // Yellow (Bottom-Left) - Aunt Polly Portrait
-    { x: 64, y: 704 }, { x: 96, y: 704 }, { x: 64, y: 736 }, { x: 96, y: 736 }
-  ],
-  2: [ // Red (Top-Right) - Jimmy Portrait
+  1: [ // Red (Top-Right) - Jimmy Portrait
     { x: 704, y: 64 }, { x: 736, y: 64 }, { x: 704, y: 96 }, { x: 736, y: 96 }
   ],
-  3: [ // Blue (Top-Left) - Pollyanna Portrait
+  2: [ // Blue (Top-Left) - Pollyanna Portrait
     { x: 64, y: 64 }, { x: 96, y: 64 }, { x: 64, y: 96 }, { x: 96, y: 96 }
+  ],
+  3: [ // Yellow (Bottom-Left) - Aunt Polly Portrait
+    { x: 64, y: 704 }, { x: 96, y: 704 }, { x: 64, y: 736 }, { x: 96, y: 736 }
   ]
 };
 
 // Home Entrance points (where you turn into home path)
 export const HOME_ENTRANCES: Record<number, number> = {
   0: 45, // Green (Bottom-Center)
-  1: 0,  // Yellow (Left-Center)
-  2: 30, // Red (Right-Center)
-  3: 15  // Blue (Top-Center)
+  1: 30, // Red (Right-Center)
+  2: 15, // Blue (Top-Center)
+  3: 0   // Yellow (Left-Center)
 };
 
 // Player Start Spaces on Broadway
 export const START_SPACES: Record<number, number> = {
   0: 39,  // Green Start
-  1: 54,  // Yellow Start
-  2: 24,  // Red Start
-  3: 9    // Blue Start
+  1: 24,  // Red Start
+  2: 9,   // Blue Start
+  3: 54   // Yellow Start
 };
 
 // Turnout configurations (swapped branch and merge indices for counter-clockwise traversal):
@@ -57,9 +57,9 @@ export interface TurnoutConfig {
 
 export const TURNOUT_CONFIGS: Record<number, TurnoutConfig> = {
   0: { playerIndex: 0, branchIndex: 40, mergeIndex: 35 },   // Green side
-  1: { playerIndex: 1, branchIndex: 55, mergeIndex: 50 },   // Yellow side
-  2: { playerIndex: 2, branchIndex: 25, mergeIndex: 20 },   // Red side
-  3: { playerIndex: 3, branchIndex: 10, mergeIndex: 5 }     // Blue side
+  1: { playerIndex: 1, branchIndex: 25, mergeIndex: 20 },   // Red side
+  2: { playerIndex: 2, branchIndex: 10, mergeIndex: 5 },     // Blue side
+  3: { playerIndex: 3, branchIndex: 55, mergeIndex: 50 }    // Yellow side
 };
 
 // Hardcoded Broadway coordinates precisely mapped to board image tile centers.
@@ -138,9 +138,9 @@ export const BROADWAY_COORDS: Coordinate[] = [
 // Generate Turnout path coordinates (rounded U-shape arches bulging INWARDS toward the center)
 const TURNOUT_ARCS: Record<number, { start: Coordinate; end: Coordinate; bulge: number }> = {
   0: { start: { x: 496, y: 626 }, end: { x: 621, y: 504 }, bulge: -0.79 }, // Green
-  1: { start: { x: 175, y: 494 }, end: { x: 298, y: 620 }, bulge: -0.81 }, // Yellow
-  2: { start: { x: 625, y: 305 }, end: { x: 506, y: 181 }, bulge: -0.84 }, // Red
-  3: { start: { x: 302, y: 177 }, end: { x: 179, y: 297 }, bulge: -0.83 }  // Blue
+  1: { start: { x: 625, y: 305 }, end: { x: 506, y: 181 }, bulge: -0.84 }, // Red
+  2: { start: { x: 302, y: 177 }, end: { x: 179, y: 297 }, bulge: -0.83 }, // Blue
+  3: { start: { x: 175, y: 494 }, end: { x: 298, y: 620 }, bulge: -0.81 }  // Yellow
 };
 
 // Generate Turnout path coordinates using measured circular arcs
@@ -220,9 +220,9 @@ export const getHomePathCoords = (playerIndex: number): Coordinate[] => {
   // Home path line endpoints (start = center of 1st home path tile (H0), end = home space in center badge)
   const homePathLines: Record<number, { start: { x: number; y: number }; end: { x: number; y: number } }> = {
     0: { start: { x: 400, y: 722 }, end: { x: 400, y: 470 } },  // Green: Bottom-Center going UP
-    1: { start: { x: 83, y: 396 }, end: { x: 326, y: 396 } },    // Yellow: Left-Center going RIGHT
-    2: { start: { x: 720, y: 405 }, end: { x: 471, y: 405 } },   // Red: Right-Center going LEFT
-    3: { start: { x: 403, y: 86 }, end: { x: 402, y: 326 } }     // Blue: Top-Center going DOWN
+    1: { start: { x: 720, y: 405 }, end: { x: 471, y: 405 } },   // Red: Right-Center going LEFT
+    2: { start: { x: 403, y: 86 }, end: { x: 402, y: 326 } },     // Blue: Top-Center going DOWN
+    3: { start: { x: 83, y: 396 }, end: { x: 326, y: 396 } }     // Yellow: Left-Center going RIGHT
   };
   
   const line = homePathLines[playerIndex];
@@ -243,9 +243,9 @@ export const getHomePathCoords = (playerIndex: number): Coordinate[] => {
 // Home center target alignments inside the center badge (matching the end of the home path lines)
 export const HOME_COORDS: Record<number, Coordinate> = {
   0: { x: 400, y: 470 },     // Green Home (bottom slot)
-  1: { x: 326, y: 396 },     // Yellow Home (left slot)
-  2: { x: 471, y: 405 },     // Red Home (right slot)
-  3: { x: 402, y: 326 }      // Blue Home (top slot)
+  1: { x: 471, y: 405 },     // Red Home (right slot)
+  2: { x: 402, y: 326 },     // Blue Home (top slot)
+  3: { x: 326, y: 396 }      // Yellow Home (left slot)
 };
 
 // Map GameSpace to visual coordinate

@@ -61,7 +61,22 @@ export const DEFAULT_RULES: GameRules = {
   useBgioEngine: true
 };
 
-export const PLAYER_COLORS: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'yellow', 'red', 'blue'];
+export const PLAYER_COLORS: ('green' | 'yellow' | 'red' | 'blue')[] = ['green', 'red', 'blue', 'yellow'];
+
+export const colorToIndex = (color: 'green' | 'red' | 'blue' | 'yellow'): number => {
+  switch (color) {
+    case 'green': return 0;
+    case 'red': return 1;
+    case 'blue': return 2;
+    case 'yellow': return 3;
+    default: return 0;
+  }
+};
+
+export const getPlayerColorIndexFromPawns = (pawns: PawnState[], playerIndex: number): number => {
+  const pawn = pawns.find(p => p.playerIndex === playerIndex);
+  return pawn ? colorToIndex(pawn.color) : playerIndex;
+};
 
 // Initialize 4 pawns for each player
 export const createInitialPawns = (players: Player[]): PawnState[] => {
@@ -73,7 +88,7 @@ export const createInitialPawns = (players: Player[]): PawnState[] => {
         color: player.color,
         playerIndex: player.playerIndex,
         pawnIndex: i,
-        space: { type: 'base', index: i, playerIndex: player.playerIndex },
+        space: { type: 'base', index: i, playerIndex: colorToIndex(player.color) },
         stepsTraveled: -1,
         isFinished: false
       });
@@ -200,7 +215,7 @@ export const calculatePath = (
   // Entry from Base
   if (currentSpace.type === 'base') {
     // Starting a piece from Base costs the entry roll (uses it up completely)
-    const startSpaceIndex = START_SPACES[pawn.playerIndex];
+    const startSpaceIndex = START_SPACES[colorToIndex(pawn.color)];
     const targetSpace: GameSpace = { type: 'broadway', index: startSpaceIndex };
     
     // Check if the starting space has a blockade of opponents
@@ -220,7 +235,7 @@ export const calculatePath = (
     const isAtBranch = currentSpace.type === 'broadway' && 
       Object.values(TURNOUT_CONFIGS).some(config => currentSpace.index === config.branchIndex);
     const chooseTurnoutThisStep = isAtBranch && useTurnout;
-    const nextSpace = getNextSingleStep(currentSpace, pawn.playerIndex, chooseTurnoutThisStep, rules);
+    const nextSpace = getNextSingleStep(currentSpace, colorToIndex(pawn.color), chooseTurnoutThisStep, rules);
     
     if (!nextSpace) {
       return null; // Went past Home or tried to move from Home
@@ -233,7 +248,7 @@ export const calculatePath = (
         p.id !== pawn.id &&
         p.space.type === 'homePath' &&
         p.space.index === nextSpace.index &&
-        p.space.playerIndex === pawn.playerIndex
+        p.space.playerIndex === colorToIndex(pawn.color)
       );
       if (isOccupied) {
         return null; // Blocked: cannot pass or land on another pawn in the home path
@@ -250,7 +265,7 @@ export const calculatePath = (
         p.space.index === nextSpace.index &&
         (nextSpace.type === 'broadway' || p.space.playerIndex === nextSpace.playerIndex)
       );
-      if (opponentPawn && isSafeSpace(nextSpace, opponentPawn.playerIndex)) {
+      if (opponentPawn && isSafeSpace(nextSpace, colorToIndex(opponentPawn.color))) {
         return null; // Cannot stop/land on opponent's safety space when occupied
       }
     }
@@ -274,7 +289,7 @@ export const calculatePath = (
         isLastStepForBlockade &&
         blockadingPawn &&
         !isOwnBlockade &&
-        !isSafeSpace(nextSpace, blockadingPawn.playerIndex) &&
+        !isSafeSpace(nextSpace, colorToIndex(blockadingPawn.color)) &&
         isBlockade(pawn.space, pawns, rules) &&
         remainingMoves &&
         remainingMoves.filter(m => m === steps).length >= 2
@@ -369,6 +384,7 @@ export const getLegalMoves = (
   rules: GameRules,
   lastMovedPawnId?: string | null
 ): LegalMove[] => {
+  const colorIndex = getPlayerColorIndexFromPawns(pawns, playerIndex);
   const playerPawns = pawns.filter(p => p.playerIndex === playerIndex && !p.isFinished);
   const legalMoves: LegalMove[] = [];
 
@@ -390,7 +406,7 @@ export const getLegalMoves = (
 
       // Check starting area vs home path priority: if the move lands on home, starts in home path/entrance,
       // is for the entry roll, and there is a pawn in base, it is disallowed.
-      if (pathStandard && pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+      if (pathStandard && pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, colorIndex)) {
         if (rules.entryRoll > 0 && stepValue === rules.entryRoll) {
           const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
           if (hasPawnInBase) {
@@ -421,7 +437,7 @@ export const getLegalMoves = (
         const pathTurnout = calculatePath(pawn, stepValue, true, pawns, rules, lastMovedPawnId, remainingMoves);
         if (pathTurnout) {
           let isTurnoutAllowed = true;
-          if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+          if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, colorIndex)) {
             if (rules.entryRoll > 0 && stepValue === rules.entryRoll) {
               const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
               if (hasPawnInBase) {
@@ -502,7 +518,7 @@ export const getLegalMoves = (
         if (pathStandard) {
           // Priority rule: if the move lands on home and uses the entry roll, and there is a pawn in base, disallow it
           let isAllowed = true;
-          if (pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+          if (pathStandard[pathStandard.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, colorIndex)) {
             if (rules.entryRoll > 0 && (components[0] === rules.entryRoll || components[1] === rules.entryRoll)) {
               const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
               if (hasPawnInBase) {
@@ -535,7 +551,7 @@ export const getLegalMoves = (
           const pathTurnout = calculatePath(pawn, sum, true, pawns, rules, lastMovedPawnId);
           if (pathTurnout) {
             let isAllowed = true;
-            if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, playerIndex)) {
+            if (pathTurnout[pathTurnout.length - 1].type === 'home' && isHomePathOrEntrance(pawn.space, colorIndex)) {
               if (rules.entryRoll > 0 && (components[0] === rules.entryRoll || components[1] === rules.entryRoll)) {
                 const hasPawnInBase = pawns.some(p => p.playerIndex === playerIndex && p.space.type === 'base' && !p.isFinished);
                 if (hasPawnInBase) {
@@ -577,7 +593,7 @@ export const getLegalMoves = (
   const homeMoves = legalMoves.filter(m => {
     if (m.targetSpace.type !== 'home') return false;
     const p = pawns.find(p => p.id === m.pawnId);
-    return p && isHomePathOrEntrance(p.space, playerIndex);
+    return p && isHomePathOrEntrance(p.space, colorIndex);
   });
 
   if (homeMoves.length > 0) {
@@ -678,7 +694,7 @@ export const makeMove = (
     if (opponentPawns.length > 0) {
       // Capture if opponent is not on their own safety space
       const firstOpp = opponentPawns[0];
-      if (!isSafeSpace(targetSpace, firstOpp.playerIndex)) {
+      if (!isSafeSpace(targetSpace, colorToIndex(firstOpp.color))) {
         const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
         const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
         

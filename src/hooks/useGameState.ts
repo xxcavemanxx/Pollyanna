@@ -115,7 +115,7 @@ export const useGameState = () => {
     roomId = roomId.trim();
     try {
       const match = await lobbyClient.getMatch('pollyanna', roomId);
-      // Seating preference: if host is at seat 0 and other seats are empty, join opposite seat 3
+      // Seating preference: if host is at seat 0 and other seats are empty, join opposite seat 2
       const isSeat0Filled = !!match.players[0].name;
       const isSeat1Filled = !!match.players[1].name;
       const isSeat2Filled = !!match.players[2].name;
@@ -123,7 +123,7 @@ export const useGameState = () => {
 
       let seatIndex = -1;
       if (isSeat0Filled && !isSeat1Filled && !isSeat2Filled && !isSeat3Filled) {
-        seatIndex = 3;
+        seatIndex = 2;
       } else {
         seatIndex = match.players.findIndex(p => !p.name);
       }
