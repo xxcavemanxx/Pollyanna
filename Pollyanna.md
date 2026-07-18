@@ -2,15 +2,18 @@
 
 ### 🐞Bugs
 
-- Chat
-- Avatars
-
 ---
 
 ### ⬆️Updates
 
-- Make it easier to select making a block vs changing mind and picking the other pawn to move.
-- Make it tablet friendly.
+- Player stats and leaderboard
+  - Wins
+  - Losses
+  - Win/Loss Ratio
+  - Captures
+  - Average points
+  - Best game
+  - Blocks
 - ⭐Add point system:
   - Captures
   - Getting a pawn home

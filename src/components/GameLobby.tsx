@@ -31,6 +31,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
 }) => {
   const [entryRoll, setEntryRoll] = useState(gameState.rules.entryRoll);
   const [doubleCaptureEnabled, setDoubleCaptureEnabled] = useState(gameState.rules.doubleCaptureEnabled || false);
+  const [tripleDoublesPenaltyEnabled, setTripleDoublesPenaltyEnabled] = useState(gameState.rules.tripleDoublesPenaltyEnabled || false);
   const [captureBonus, setCaptureBonus] = useState(gameState.rules.captureBonus);
   const [turnTimeLimit, setTurnTimeLimit] = useState(gameState.rules.turnTimeLimit);
   
@@ -45,6 +46,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
       turnoutExtraLength: gameState.rules.turnoutExtraLength,
       turnTimeLimit: Number(turnTimeLimit),
       doubleCaptureEnabled,
+      tripleDoublesPenaltyEnabled,
       useBgioEngine: true
     });
     alert("⚡ Rules updated successfully!");
@@ -270,7 +272,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
                   </div>
                 </div>
 
-                <div className="form-group row-group">
+                <div className="form-group row-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                   <label className="checkbox-label">
                     <input 
                       type="checkbox" 
@@ -278,8 +280,26 @@ export const GameLobby: React.FC<GameLobbyProps> = ({
                       onChange={(e) => setDoubleCaptureEnabled(e.target.checked)}
                       disabled={!isHost}
                     />
-                    <span>Allow "Double Capture" on Blockades</span>
+                    <span>Enable "Doubles Capture" on Blockades</span>
                   </label>
+                  <span className="input-hint" style={{ marginLeft: '24px', marginTop: '2px', display: 'block' }}>
+                    (Advance exactly 2 pawns from your blockade onto an opponent's 2-pawn blockade on doubles to defeat them and get two +10 bonus moves)
+                  </span>
+                </div>
+
+                <div className="form-group row-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <label className="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      checked={tripleDoublesPenaltyEnabled} 
+                      onChange={(e) => setTripleDoublesPenaltyEnabled(e.target.checked)}
+                      disabled={!isHost}
+                    />
+                    <span>Enable "Triple Doubles" Penalty</span>
+                  </label>
+                  <span className="input-hint" style={{ marginLeft: '24px', marginTop: '2px', display: 'block' }}>
+                    (Forfeit turn and pass play to the next player if you roll doubles 3 times in a row)
+                  </span>
                 </div>
               </>
             )}

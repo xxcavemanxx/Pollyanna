@@ -25,6 +25,7 @@ export interface BoardgameG {
     round: number;
     winner?: number;
   };
+  consecutiveDoubles: number;
 }
 
 const isPlayerActionAllowed = (context: any, G: BoardgameG): boolean => {
@@ -82,7 +83,8 @@ export const PollyannaGame = {
       players,
       lastMovedPawnId: null,
       gameStatus: 'lobby',
-      currentTurn: 0
+      currentTurn: 0,
+      consecutiveDoubles: 0
     };
   },
 
@@ -295,6 +297,22 @@ export const PollyannaGame = {
       const activePlayer = G.players[ctx.playOrderPos];
       G.history.push(`🎲 ${activePlayer.name} rolled [${die1}, ${die2}] (Total: ${die1 + die2})`);
 
+      const isDoubles = die1 === die2;
+      if (isDoubles) {
+        G.consecutiveDoubles = (G.consecutiveDoubles || 0) + 1;
+        if (G.rules.tripleDoublesPenaltyEnabled && G.consecutiveDoubles === 3) {
+          G.history.push(`🚨 Triple Doubles! ${activePlayer.name} rolled doubles 3 times in a row and forfeits their turn.`);
+          G.hasRolled = false;
+          G.remainingMoves = [];
+          G.lastMovedPawnId = null;
+          G.consecutiveDoubles = 0;
+          context.events.endTurn();
+          return;
+        }
+      } else {
+        G.consecutiveDoubles = 0;
+      }
+
       const legalMoves = getLegalMoves(activePlayer.playerIndex, G.remainingMoves, G.pawns, G.rules, G.lastMovedPawnId);
       if (legalMoves.length === 0) {
         G.history.push(`🚫 No legal moves available for ${activePlayer.name}.`);
@@ -410,6 +428,7 @@ export const PollyannaGame = {
       G.hasRolled = false;
       G.lastMovedPawnId = null;
       G.currentTurn = ctx.playOrderPos;
+      G.consecutiveDoubles = 0;
       if (G.gameStatus === 'playing') {
         G.history.push(`⏰ It is now ${activePlayer.name}'s turn.`);
       }

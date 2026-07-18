@@ -23,6 +23,7 @@ export interface GameRules {
   turnoutExtraLength: number; // Extra spaces in turnout (e.g. 3)
   turnTimeLimit: number;      // Seconds, 0 = unlimited
   doubleCaptureEnabled: boolean; // Custom rule: allow double capture on blockade with doubles
+  tripleDoublesPenaltyEnabled: boolean; // Custom rule: turn forfeit on rolling doubles 3 times
   useBgioEngine?: boolean;
 }
 
@@ -58,6 +59,7 @@ export const DEFAULT_RULES: GameRules = {
   turnoutExtraLength: 3,
   turnTimeLimit: 0,
   doubleCaptureEnabled: false,
+  tripleDoublesPenaltyEnabled: false,
   useBgioEngine: true
 };
 
@@ -289,12 +291,20 @@ export const calculatePath = (
         isLastStepForBlockade &&
         blockadingPawn &&
         !isOwnBlockade &&
-        !isSafeSpace(nextSpace, colorToIndex(blockadingPawn.color)) &&
         isBlockade(pawn.space, pawns, rules) &&
         remainingMoves &&
         remainingMoves.filter(m => m === steps).length >= 2
       ) {
-        doubleCaptureAllowed = true;
+        const opponentCount = pawns.filter(o => 
+          !o.isFinished &&
+          o.playerIndex !== pawn.playerIndex &&
+          o.space.type === nextSpace.type &&
+          o.space.index === nextSpace.index &&
+          (nextSpace.type === 'broadway' || o.space.playerIndex === nextSpace.playerIndex)
+        ).length;
+        if (opponentCount === 2) {
+          doubleCaptureAllowed = true;
+        }
       }
 
       if (!isLastStepForBlockade || (!isOwnBlockade && !doubleCaptureAllowed)) {
@@ -664,6 +674,25 @@ export const makeMove = (
   if (!path) return state;
 
   const targetSpace = path[path.length - 1];
+  const originatingSpace = { ...pawn.space };
+
+  // Detect if this is a Doubles Capture
+  const isOwnBlockadeAtStart = isBlockade(originatingSpace, state.pawns, rules);
+  const opponentPawnsAtTarget = state.pawns.filter(p => 
+    !p.isFinished &&
+    p.playerIndex !== pawn.playerIndex &&
+    p.space.type === targetSpace.type &&
+    p.space.index === targetSpace.index &&
+    (targetSpace.type === 'broadway' || p.space.playerIndex === targetSpace.playerIndex)
+  );
+  
+  const isOpponentBlockadeAtTarget = opponentPawnsAtTarget.length === 2;
+  const hasDoublesRoll = state.remainingMoves.filter(m => m === stepValue).length >= 2;
+
+  const isDoublesCapture = rules.doubleCaptureEnabled && 
+                           isOwnBlockadeAtStart && 
+                           isOpponentBlockadeAtTarget && 
+                           hasDoublesRoll;
 
   // Update pawn location
   pawn.space = targetSpace;
@@ -680,40 +709,88 @@ export const makeMove = (
     state.history.push(`🎉 Player ${state.players[state.currentTurn].name}'s piece reached Home!`);
   }
 
-  // Handle Capture checks on landing space
-  if (!pawn.isFinished) {
-    // Find all opponent pawns on the landing space
-    const opponentPawns = state.pawns.filter(p => 
-      !p.isFinished &&
-      p.playerIndex !== pawn.playerIndex &&
-      p.space.type === targetSpace.type &&
-      p.space.index === targetSpace.index &&
-      (targetSpace.type === 'broadway' || p.space.playerIndex === targetSpace.playerIndex)
+  if (isDoublesCapture) {
+    const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
+    const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
+
+    // Find and move partner pawn from the originating blockade
+    const partnerPawn = state.pawns.find(p => 
+      p.id !== pawn.id && 
+      p.playerIndex === pawn.playerIndex && 
+      p.space.type === originatingSpace.type && 
+      p.space.index === originatingSpace.index && 
+      (originatingSpace.type === 'broadway' || p.space.playerIndex === originatingSpace.playerIndex) && 
+      !p.isFinished
     );
 
-    if (opponentPawns.length > 0) {
-      // Capture if opponent is not on their own safety space
-      const firstOpp = opponentPawns[0];
-      if (!isSafeSpace(targetSpace, colorToIndex(firstOpp.color))) {
-        const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
-        const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
-        
-        opponentPawns.forEach(oppPawn => {
-          const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
-          const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
+    if (partnerPawn) {
+      partnerPawn.space = targetSpace;
+      if (partnerPawn.stepsTraveled === -1) {
+        partnerPawn.stepsTraveled = 0;
+      } else {
+        partnerPawn.stepsTraveled += stepValue;
+      }
+      if (targetSpace.type === 'home') {
+        partnerPawn.isFinished = true;
+        partnerPawn.stepsTraveled = 99;
+      }
+    }
+
+    // Capture the opponent's blockade pawns (send them back to base)
+    opponentPawnsAtTarget.forEach(oppPawn => {
+      oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
+      oppPawn.stepsTraveled = -1;
+      oppPawn.isFinished = false;
+      const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
+      const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
+      state.history.push(`⚔️🔥 DOUBLE CAPTURE! ${activePlayerName} captured ${oppPlayerName}'s blockade piece!`);
+    });
+
+    // Award two separate bonus movements of 10 spaces
+    state.remainingMoves.push(10, 10);
+    state.history.push(`✨ ${activePlayerName} gets two +10 space bonus moves!`);
+
+    // Consume the second stepValue since we moved two pawns using doubles
+    const secondMoveIdx = state.remainingMoves.indexOf(stepValue);
+    if (secondMoveIdx !== -1) {
+      state.remainingMoves.splice(secondMoveIdx, 1);
+    }
+  } else {
+    // Handle standard Capture checks on landing space
+    if (!pawn.isFinished) {
+      // Find all opponent pawns on the landing space
+      const opponentPawns = state.pawns.filter(p => 
+        !p.isFinished &&
+        p.playerIndex !== pawn.playerIndex &&
+        p.space.type === targetSpace.type &&
+        p.space.index === targetSpace.index &&
+        (targetSpace.type === 'broadway' || p.space.playerIndex === targetSpace.playerIndex)
+      );
+
+      if (opponentPawns.length > 0) {
+        // Capture if opponent is not on their own safety space
+        const firstOpp = opponentPawns[0];
+        if (!isSafeSpace(targetSpace, colorToIndex(firstOpp.color))) {
+          const activePlayerForCapture = state.players.find(p => p.playerIndex === pawn.playerIndex);
+          const activePlayerName = activePlayerForCapture ? activePlayerForCapture.name : `Player ${pawn.playerIndex + 1}`;
           
-          // Capture! Send back to start base
-          oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
-          oppPawn.stepsTraveled = -1;
-          oppPawn.isFinished = false;
+          opponentPawns.forEach(oppPawn => {
+            const oppPlayer = state.players.find(p => p.playerIndex === oppPawn.playerIndex);
+            const oppPlayerName = oppPlayer ? oppPlayer.name : `Player ${oppPawn.playerIndex + 1}`;
+            
+            // Capture! Send back to start base
+            oppPawn.space = { type: 'base', index: oppPawn.pawnIndex, playerIndex: oppPawn.playerIndex };
+            oppPawn.stepsTraveled = -1;
+            oppPawn.isFinished = false;
 
-          state.history.push(`⚔️ ${activePlayerName} captured ${oppPlayerName}'s piece!`);
-        });
+            state.history.push(`⚔️ ${activePlayerName} captured ${oppPlayerName}'s piece!`);
+          });
 
-        // Award capture bonus move if rules specify a bonus
-        if (rules.captureBonus > 0) {
-          state.remainingMoves.push(rules.captureBonus);
-          state.history.push(`✨ ${activePlayerName} gets a +${rules.captureBonus} space capture bonus!`);
+          // Award capture bonus move if rules specify a bonus
+          if (rules.captureBonus > 0) {
+            state.remainingMoves.push(rules.captureBonus);
+            state.history.push(`✨ ${activePlayerName} gets a +${rules.captureBonus} space capture bonus!`);
+          }
         }
       }
     }
