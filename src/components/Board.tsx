@@ -243,7 +243,51 @@ export const Board: React.FC<BoardProps> = ({
           return null;
         })}
 
-        {/* 12. Glowing Target Indicators for Legal Moves */}
+        {/* 13. Pawns */}
+        {pawns.map((pawn) => {
+          let x = 0;
+          let y = 0;
+          if (pawn.space.type === 'home') {
+            const pos = HOME_COORDS[colorToIndex(pawn.color)];
+            x = pos.x + (pawn.pawnIndex % 2 === 0 ? -12 : 12);
+            y = pos.y + (pawn.pawnIndex < 2 ? -12 : 12);
+          } else if (animatingPawn && animatingPawn.pawnId === pawn.id) {
+            const currentCoord = animatingPawn.coords[animatingPawn.currentIndex];
+            x = currentCoord.x;
+            y = currentCoord.y;
+          } else {
+            const pawnsOnSpace = pawns.filter(o => 
+              !o.isFinished &&
+              o.space.type === pawn.space.type &&
+              o.space.index === pawn.space.index &&
+              o.space.playerIndex === pawn.space.playerIndex
+            );
+            
+            const indexOnSpace = pawnsOnSpace.findIndex(o => o.id === pawn.id);
+            const totalOnSpace = pawnsOnSpace.length;
+
+            const coords = getStackedPawnCoords(pawn.space, indexOnSpace, totalOnSpace, rules.turnoutExtraLength);
+            x = coords.x;
+            y = coords.y;
+          }
+
+          const isSelectable = legalMoves.some(m => m.pawnId === pawn.id);
+          const isPulsing = selectedPawnId === pawn.id;
+
+          return (
+            <Pawn 
+              key={`pawn-${pawn.id}`}
+              color={pawn.color}
+              x={x}
+              y={y}
+              isSelectable={isSelectable}
+              isPulsing={isPulsing}
+              onClick={() => handlePawnClick(pawn.id)}
+            />
+          );
+        })}
+
+        {/* 12. Glowing Target Indicators for Legal Moves (rendered on top of pawns for easier mobile tapping) */}
         {activePawnMoves.map((move, mIdx) => {
           const coord = getSpaceCoordinate(move.targetSpace, rules.turnoutExtraLength);
           return (
@@ -252,6 +296,14 @@ export const Board: React.FC<BoardProps> = ({
               onClick={() => handleTargetClick(move)}
               style={{ cursor: 'pointer' }}
             >
+              {/* Larger invisible tap target circle for mobile usability */}
+              <circle 
+                cx={coord.x} 
+                cy={coord.y} 
+                r="28" 
+                fill="transparent" 
+                style={{ pointerEvents: 'all' }}
+              />
               <circle 
                 cx={coord.x} 
                 cy={coord.y} 
@@ -302,50 +354,6 @@ export const Board: React.FC<BoardProps> = ({
 
         {/* Symmetrical Crisp Black Outer Border */}
         <rect x="0" y="0" width="800" height="800" fill="none" stroke="#000000" strokeWidth="4" />
-
-        {/* 13. Pawns */}
-        {pawns.map((pawn) => {
-          let x = 0;
-          let y = 0;
-          if (pawn.space.type === 'home') {
-            const pos = HOME_COORDS[colorToIndex(pawn.color)];
-            x = pos.x + (pawn.pawnIndex % 2 === 0 ? -12 : 12);
-            y = pos.y + (pawn.pawnIndex < 2 ? -12 : 12);
-          } else if (animatingPawn && animatingPawn.pawnId === pawn.id) {
-            const currentCoord = animatingPawn.coords[animatingPawn.currentIndex];
-            x = currentCoord.x;
-            y = currentCoord.y;
-          } else {
-            const pawnsOnSpace = pawns.filter(o => 
-              !o.isFinished &&
-              o.space.type === pawn.space.type &&
-              o.space.index === pawn.space.index &&
-              o.space.playerIndex === pawn.space.playerIndex
-            );
-            
-            const indexOnSpace = pawnsOnSpace.findIndex(o => o.id === pawn.id);
-            const totalOnSpace = pawnsOnSpace.length;
-
-            const coords = getStackedPawnCoords(pawn.space, indexOnSpace, totalOnSpace, rules.turnoutExtraLength);
-            x = coords.x;
-            y = coords.y;
-          }
-
-          const isSelectable = legalMoves.some(m => m.pawnId === pawn.id);
-          const isPulsing = selectedPawnId === pawn.id;
-
-          return (
-            <Pawn 
-              key={`pawn-${pawn.id}`}
-              color={pawn.color}
-              x={x}
-              y={y}
-              isSelectable={isSelectable}
-              isPulsing={isPulsing}
-              onClick={() => handlePawnClick(pawn.id)}
-            />
-          );
-        })}
       </svg>
     </div>
   );
